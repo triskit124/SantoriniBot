@@ -1,2 +1,2 @@
 # SantoriniBot
-''python run main.py''
+```python run main.py```
