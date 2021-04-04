@@ -1,4 +1,4 @@
-import random
+import random, time
 
 
 class Const:
@@ -17,7 +17,7 @@ class GameState:
     def print_board(self):
         for i in range(self._board_size):
             for j in range(self._board_size):
-                print('(', self.board[i][j][0], ' , ', self.board[i][j][1], ')', '    ', end='')
+                print('(', self.board[i][j][0], ',', self.board[i][j][1], ')', '    ', end='')
             print('\n')
 
     def start_game(self):
@@ -25,6 +25,12 @@ class GameState:
         self.current_player_position[0] = int(input("Welcome! Please place 1st Builder's row: "))
         self.current_player_position[1] = int(input("Please place 1st Builder's col: "))
         self.board[self.current_player_position[0]][self.current_player_position[1]][0] = 'B'
+
+        avail = [[row, col] for row in range(5) for col in range(5) if self.board[row][col][0] == '']
+        bot_position = random.choices(avail)[0]
+        self.current_opponent_position[0] = bot_position[0]
+        self.current_opponent_position[1] = bot_position[1]
+        self.board[self.current_opponent_position[0]][self.current_opponent_position[1]][0] = 'O'
 
         self.print_board()
 
@@ -80,7 +86,6 @@ class Player:
     def build(self, board):
         building = input("Select where to build: Up (u), Down (d), Left (l), Right (r), Up-Left (ul), Up-Right (ur), Down-Left (dl), Down-Right (dr):   ")
         new_pos = self.position[0:2]
-        print(new_pos)
         if building == 'u':
             new_pos[0] -= 1
         elif building == 'd':
@@ -109,23 +114,23 @@ class Player:
 
 
 class Opponent:
-    def __init__(self, game: GameState, policy_type):
+    def __init__(self, policy_type, position):
         self.policy_type = policy_type
-        self.game = game
+        self.policy = dict()
+        self.position = position
 
     def generate_policy(self, board):
-        policy = dict()
         if self.policy_type == 'random':
-            avail = [[row, col] for row in range(self.game._board_size) for col in range(self.game._board_size) if board[row][col] == '.']
-            policy = random.choices(avail)[0]
+            avail = [[row, col, board[row][col][1]] for row in range(5) for col in range(5) if board[row][col][0] == '' and abs(row - self.position[0]) == 1 and abs(col - self.position[1]) == 1]
+            self.policy[str(board)] = random.choices(avail)[0]
 
-        return policy
+    def move(self, board):
+        self.generate_policy(board)
+        self.position = self.policy[str(board)]
 
-    def move(self, board, game: GameState):
-        current_policy = self.generate_policy(self, board)
-        game.board[0] = current_move[0]
-        game.board[1] = current_move[1]
-        game.current_opponent_position = current_move
+    def build(self, board):
+        self.generate_policy(board)
+        return self.policy[str(board)][0:2]
 
 
 def player_move(game, player):
@@ -148,6 +153,34 @@ def player_build(game, player):
     game.print_board()
 
 
+def opponent_move(game, opponent):
+    old_opponent_position = opponent.position.copy()
+    opponent.move(game.board)
+
+    if opponent.position[2] == 3:
+        game.flag = 'game_over'
+
+    game.current_opponent_position = opponent.position
+    game.board[old_opponent_position[0]][old_opponent_position[1]][0] = ''
+    game.board[opponent.position[0]][opponent.position[1]][0] = 'O'
+
+    print("Opponent is moving...")
+    time.sleep(2)
+    game.print_board()
+    print('\n')
+
+
+
+def opponent_build(game, opponent):
+    build_loc = opponent.build(game.board)
+    game.board[build_loc[0]][build_loc[1]][1] = game.board[build_loc[0]][build_loc[1]][1] + 1
+
+    print("Opponent is building...")
+    time.sleep(2)
+    game.print_board()
+    print('\n')
+
+
 def main():
     #run the program
     const = Const()
@@ -155,7 +188,7 @@ def main():
     game.start_game()
 
     player = Player(game.current_player_position)
-    #opponent = Opponent(game, 'random')
+    opponent = Opponent('random', game.current_opponent_position)
 
     while game.flag != 'end':
         player_move(game, player)
@@ -163,6 +196,12 @@ def main():
             print("You Win!")
             break
         player_build(game, player)
+
+        opponent_move(game, opponent)
+        if game.flag == 'game_over':
+            print("You Lose!")
+            break
+        opponent_build(game, opponent)
 
 
 if __name__ == '__main__':
