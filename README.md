@@ -2,15 +2,15 @@
 
 ## How to Play:
 
-###to launch the game: 
+### to launch the game: 
 ```python main.py``` 
 
-###player markers:
+### player markers:
 your player: B
 
 the opponent: O
 
-###controls:
+### controls:
 Up (u) 
 
 Down (d)
