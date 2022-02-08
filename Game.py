@@ -208,19 +208,12 @@ class Opponent:
             self.player_marker = None
 
         # chose policy Agent
-        print(policy_type)
         if policy_type == 'FS':
-            if self.self_play_type == "opponent":
-                self.Agent = FSAgent()
-            else:
-                self.Agent = FSAgent(agent_type="player")
+            self.Agent = FSAgent(agent_type=self.self_play_type)
         elif policy_type == 'Random':
-            self.Agent = RandomAgent()
+            self.Agent = RandomAgent(agent_type=self.self_play_type)
         elif policy_type == 'MiniMax':
-            if self.self_play_type == "opponent":
-                self.Agent = MiniMaxAgent()
-            else:
-                self.Agent = MiniMaxAgent(agent_type="player")
+            self.Agent = MiniMaxAgent(agent_type=self.self_play_type)
         else:
             self.Agent = None
 

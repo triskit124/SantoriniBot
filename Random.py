@@ -8,8 +8,8 @@ class RandomAgent:
     one randomly.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self , agent_type="opponent"):
+        self.agent_type = agent_type
 
     def getAction(self, game):
         """
@@ -18,12 +18,17 @@ class RandomAgent:
         :param game: GameState representation of the current game board. See class GameState
         :return: a random action
         """
+        if self.agent_type == "opponent":
+            position = game.opponent_position
+        else:
+            position = game.player_position
+
         if game.turn_type == 'move':
             #move
-            actions = Util.get_move_action_space(game.board, game.opponent_position)
+            actions = Util.get_move_action_space(game.board, position)
         else:
             # build
-            actions = Util.get_build_action_space(game.board, game.opponent_position)
+            actions = Util.get_build_action_space(game.board, position)
 
         if actions:
             action = random.choice(actions)
