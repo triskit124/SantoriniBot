@@ -10,10 +10,11 @@ class MiniMaxAgent:
     self.evaluation_function().
     """
 
-    def __init__(self):
-        self.d = 8              # solve depth
-        self.alpha = -math.inf  # max cutoff for min action
-        self.beta = math.inf    # min cutoff for max action
+    def __init__(self, agent_type="opponent"):
+        self.d = 8                      # solve depth
+        self.alpha = -math.inf          # max cutoff for min action
+        self.beta = math.inf            # min cutoff for max action
+        self.agent_type = agent_type
 
     def transition(self, board, position, action, player_marker):
         """
@@ -142,9 +143,26 @@ class MiniMaxAgent:
         :param game: GameState representation of the current game board. See class GameState
         :return: action: greedy action corresponding to best value at root-node
         """
-        dummy_board = copy.deepcopy(game.board)
-        dummy_opponent_position = copy.deepcopy(game.opponent_position)
-        dummy_player_position = copy.deepcopy(game.player_position)
-        v, action = self.alphabeta(dummy_board, dummy_player_position, dummy_opponent_position, self.alpha, self.beta, self.d, game.turn, game.turn_type)
+
+        # TODO: this is hacky, but if this agent is in self-play and is actially a "Player", need to swap inputs into the alphabeta call
+        # alphabeta() assumed the "opponent" is maximizer and "player" is minimizer for everything. Very confusing if you
+        # want two minimaxes to play each other!
+        if self.agent_type == "opponent":
+            dummy_board = copy.deepcopy(game.board)
+            dummy_opponent_position = copy.deepcopy(game.opponent_position)
+            dummy_player_position = copy.deepcopy(game.player_position)
+            turn = game.turn
+            turn_type = game.turn_type
+        else:
+            dummy_board = copy.deepcopy(game.board)
+            dummy_opponent_position = copy.deepcopy(game.player_position)
+            dummy_player_position = copy.deepcopy(game.opponent_position)
+            if game.turn == "player":
+                turn = "opponent"
+            else:
+                turn = "player"
+            turn_type = game.turn_type
+
+        v, action = self.alphabeta(dummy_board, dummy_player_position, dummy_opponent_position, self.alpha, self.beta, self.d, turn, turn_type)
         #print(v)
         return action

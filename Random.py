@@ -24,4 +24,9 @@ class RandomAgent:
         else:
             # build
             actions = Util.get_build_action_space(game.board, game.opponent_position)
-        return random.choice(actions)
+
+        if actions:
+            action = random.choice(actions)
+        else:
+            action = None
+        return action

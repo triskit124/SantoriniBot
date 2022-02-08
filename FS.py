@@ -13,8 +13,13 @@ class FSAgent(MDP):
     Inherits from parent class, MDP.
     """
 
-    def __init__(self):
+    def __init__(self, agent_type="opponent"):
         super().__init__()
+
+        self.agent_type = agent_type
+
+        if self.agent_type == "player":
+            self.player_marker = "B"
 
     def forward_search(self, board, position, d_solve, action_type):
         """
@@ -60,8 +65,13 @@ class FSAgent(MDP):
         :return: action: greedy action corresponding to best value at root-node
         """
         dummy_board = copy.deepcopy(game.board)
-        dummy_position = copy.deepcopy(game.opponent_position)
+
+        if self.agent_type == "opponent":
+            dummy_position = copy.deepcopy(game.opponent_position)
+        else:
+            dummy_position = copy.deepcopy(game.player_position)
+
         action, v = self.forward_search(dummy_board, dummy_position, self.d_solve, game.turn_type)
-        print(v)
+        #print(v)
         return action
 
