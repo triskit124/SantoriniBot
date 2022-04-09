@@ -1,6 +1,7 @@
 import copy
 import math
 import Util
+import random
 
 
 class MiniMaxAgent:
@@ -11,7 +12,7 @@ class MiniMaxAgent:
     """
 
     def __init__(self, agent_type="opponent"):
-        self.d = 7                      # solve depth
+        self.d = 10                      # solve depth
         self.alpha = -math.inf          # max cutoff for min action
         self.beta = math.inf            # min cutoff for max action
         self.agent_type = agent_type
@@ -62,7 +63,8 @@ class MiniMaxAgent:
                 rp = math.sqrt((player_position[0] - y) ** 2 + (player_position[1] - x) ** 2)
                 if rp != 0:
                     heuristic_score -= board[y][x][1] / rp
-        return heuristic_score
+        #return heuristic_score
+        return 0 # Turning off heuristic score
 
     def alphabeta(self, board, player_position, opponent_position, alpha, beta, d_solve, agent, action_type):
         """
@@ -94,10 +96,12 @@ class MiniMaxAgent:
             values = []
             if action_type == 'move':
                 actions = Util.get_move_action_space(board, player_position)
+                random.shuffle(actions)
                 next_agent = 'player'
                 next_action = 'build'
             else:
                 actions = Util.get_build_action_space(board, player_position)
+                random.shuffle(actions)
                 next_agent = 'opponent'
                 next_action = 'move'
             if not actions:
@@ -118,10 +122,12 @@ class MiniMaxAgent:
             values = []
             if action_type == 'move':
                 actions = Util.get_move_action_space(board, opponent_position)
+                random.shuffle(actions)
                 next_agent = 'opponent'
                 next_action = 'build'
             else:
                 actions = Util.get_build_action_space(board, opponent_position)
+                random.shuffle(actions)
                 next_agent = 'player'
                 next_action = 'move'
             if not actions:
@@ -134,6 +140,8 @@ class MiniMaxAgent:
                 if value >= beta:
                     break
                 alpha = max(alpha, value)
+            #if d_solve == self.d:
+            #    print(actions, values)
             return value, actions[values.index(value)]
 
     def getAction(self, game):
