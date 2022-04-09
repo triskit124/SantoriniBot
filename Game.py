@@ -15,7 +15,7 @@ class GameState:
     def __init__(self, game_type='normal'):
         self.game_type = game_type
         self.flag = None
-        self.board_size = 3
+        self.board_size = 4
         self.board = [[['', 0] for i in range(self.board_size)] for j in range(self.board_size)]
         self.starting_player_position = [0, 0, 0]
         self.starting_opponent_position = [0, 0, 0]
@@ -265,7 +265,7 @@ class Opponent:
             print("\nPlayer is building...\n")
 
         self.action = self.Agent.getAction(game)
-        print(self.action)
+        #print(self.action)
         build_loc = Util.move_logic(game.board, self.position, self.action)
         game.build_on_board(build_loc)
         print('\n')

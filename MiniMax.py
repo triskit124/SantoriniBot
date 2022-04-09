@@ -11,7 +11,7 @@ class MiniMaxAgent:
     """
 
     def __init__(self, agent_type="opponent"):
-        self.d = 8                      # solve depth
+        self.d = 7                      # solve depth
         self.alpha = -math.inf          # max cutoff for min action
         self.beta = math.inf            # min cutoff for max action
         self.agent_type = agent_type
@@ -144,7 +144,7 @@ class MiniMaxAgent:
         :return: action: greedy action corresponding to best value at root-node
         """
 
-        # TODO: this is hacky, but if this agent is in self-play and is actially a "Player", need to swap inputs into the alphabeta call
+        # this is hacky, but if this agent is in self-play and is actially a "Player", need to swap inputs into the alphabeta call
         # alphabeta() assumed the "opponent" is maximizer and "player" is minimizer for everything. Very confusing if you
         # want two minimaxes to play each other!
         if self.agent_type == "opponent":

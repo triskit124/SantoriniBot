@@ -67,7 +67,7 @@ def self_play(num_games=1, opponent_type="Random", player_type="MiniMax"):
 
 
 if __name__ == '__main__':
-    results, summary = self_play(num_games=1, opponent_type="MiniMax", player_type="FS")
+    results, summary = self_play(num_games=10, opponent_type="MiniMax", player_type="FS")
 
     print(results)
     print(summary)

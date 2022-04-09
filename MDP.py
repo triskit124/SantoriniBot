@@ -9,7 +9,7 @@ class MDP:
     such as FSAgent.
     """
 
-    def __init__(self, gamma=0.99, d_solve=7):
+    def __init__(self, gamma=0.99, d_solve=5):
         self.gamma = gamma          # discount factor
         self.d_solve = d_solve      # solve depth
         self.player_marker = 'O'    # marker for the board
