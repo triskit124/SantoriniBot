@@ -12,10 +12,13 @@ class GameState:
     """
     Implements the state of the game. Keeps track of all state variables, including player positions and the game board.
     """
-    def __init__(self, game_type='normal'):
+    def __init__(self, game_type='normal', args=None):
         self.game_type = game_type
         self.flag = None
-        self.board_size = 5
+        if args is not None:
+            self.board_size = args.board_size
+        else:
+            self.board_size = 5
         self.board = [[['', 0] for i in range(self.board_size)] for j in range(self.board_size)]
         self.starting_player_position = [0, 0, 0]
         self.starting_opponent_position = [0, 0, 0]
@@ -35,9 +38,21 @@ class GameState:
         """
         Helper function to print the current game board to the command line.
         """
+        player_print_dict = {
+            "": "  ",
+            "O": "\U0001F916",
+            "B": "\U0001F477",
+        }
+        height_print_dict = {
+            0: "\N{white large square} ",
+            1: "\U0001F7E8",
+            2: "\U0001F7E6",
+            3: "\U0001F7E5",
+            4: "\U0001F535",
+        }
         for i in range(self.board_size):
             for j in range(self.board_size):
-                print(self.board[i][j][0], self.board[i][j][1], '   ', end='')
+                print(player_print_dict[self.board[i][j][0]], height_print_dict[self.board[i][j][1]], '  ', end='')
             print('\n')
 
     def start_game(self):
@@ -279,11 +294,12 @@ def main():
     # parse command-line inputs
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", default="Random", type=str, help="Choose an opponent AI to play against", choices=['Random', 'FS', 'MiniMax'])
+    parser.add_argument("--board_size", default=5, type=int, help="Board size", choices=[3, 4, 5])
     args = parser.parse_args()
     agent_select = args.agent
 
     #run the program
-    game = GameState()
+    game = GameState(args=args)
     game.start_game()
 
     player = Player(game)
