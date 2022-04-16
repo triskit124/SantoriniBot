@@ -1,47 +1,44 @@
-import random
-import copy
 import argparse
 import Util
 
 from FS import FSAgent
 from Random import RandomAgent
 from MiniMax import MiniMaxAgent
+from HumanPlayer import HumanAgent
 
 
 class GameState:
     """
     Implements the state of the game. Keeps track of all state variables, including player positions and the game board.
     """
-    def __init__(self, game_type='normal', args=None):
-        self.game_type = game_type
-        self.flag = None
-        if args is not None:
-            self.board_size = args.board_size
-        else:
-            self.board_size = 5
-        self.board = [[['', 0] for i in range(self.board_size)] for j in range(self.board_size)]
-        self.starting_player_position = [0, 0, 0]
-        self.starting_opponent_position = [0, 0, 0]
-        self.turn = None
-        self.turn_type = None
-        self.player_position = self.starting_player_position
-        self.opponent_position = self.starting_opponent_position
+    def __init__(self, args):
 
-        print("                                       \n \
-               __       __        ___  __          __ \n \
-              / /  ___ / /____   / _ \/ /__ ___ __/ / \n \
-             / /__/ -_) __(_-<  / ___/ / _ `/ // /_/  \n \
-            /____/\__/\__/___/ /_/  /_/\_,_/\_, (_)   \n \
-                                           /___/     ")
+        # players
+        self.num_players = args.num_players
+        self.players = set(range(self.num_players))
+        self.player_positions = [None for _ in range(self.num_players)]
+        self.winner = None
+        self.losers = set()
+
+        # board
+        self.board_size = args.board_size
+        self.board = [[[None, 0] for i in range(self.board_size)] for j in range(self.board_size)]
+
+        # state
+        self.flag = None # flag to keep track of game over state
+        self.turn = None # [int] index that keeps track of whose turn it is
+        self.turn_type = None # [string] what type of turn, 'move' or 'build'
 
     def print_board(self):
         """
         Helper function to print the current game board to the command line.
         """
         player_print_dict = {
-            "": "  ",
-            "O": "\U0001F916",
-            "B": "\U0001F477",
+            None: "  ",
+            0: "\U0001F477",
+            1: "\U0001F916",
+            2: "\U0001F916",
+            3: "\U0001F916"
         }
         height_print_dict = {
             0: "\N{white large square} ",
@@ -55,54 +52,40 @@ class GameState:
                 print(player_print_dict[self.board[i][j][0]], height_print_dict[self.board[i][j][1]], '  ', end='')
             print('\n')
 
-    def start_game(self):
+    def start_game(self, players):
         """
         Initializes the game.
         """
-        self.flag = 'started'
 
-        # normal gameplay defines one Human player and one AI agent
-        if self.game_type == 'normal':
-            # ask for player to place their builder
-            self.starting_player_position[0] = int(input("Welcome! Please place Builder (row): "))
-            self.starting_player_position[1] = int(input("Please place Builder (col): "))
-            print("\n")
-            self.board[self.starting_player_position[0]][self.starting_player_position[1]][0] = 'B'
-
-            # choose location to place opponent (just chooses randomly at this point in time)
-            avail = [[row, col] for row in range(self.board_size) for col in range(self.board_size) if self.board[row][col][0] == '']
-            bot_position = random.choice(avail)
-            self.starting_opponent_position[0] = bot_position[0]
-            self.starting_opponent_position[1] = bot_position[1]
-            self.board[self.starting_opponent_position[0]][self.starting_opponent_position[1]][0] = 'O'
-
-        # gameplay mode for playing two AI agents against one another
-        elif self.game_type == 'self_play':
-            avail = [[row, col] for row in range(self.board_size) for col in range(self.board_size) if self.board[row][col][0] == '']
-            player_position = random.choice(avail)
-            self.starting_player_position[0] = player_position[0]
-            self.starting_player_position[1] = player_position[1]
-            self.board[self.starting_player_position[0]][self.starting_player_position[1]][0] = 'B'
-
-            avail = [[row, col] for row in range(self.board_size) for col in range(self.board_size) if self.board[row][col][0] == '']
-            bot_position = random.choices(avail)[0]
-            self.starting_opponent_position[0] = bot_position[0]
-            self.starting_opponent_position[1] = bot_position[1]
-            self.board[self.starting_opponent_position[0]][self.starting_opponent_position[1]][0] = 'O'
+        print("                                       \n \
+                       __       __        ___  __          __ \n \
+                      / /  ___ / /____   / _ \/ /__ ___ __/ / \n \
+                     / /__/ -_) __(_-<  / ___/ / _ `/ // /_/  \n \
+                    /____/\__/\__/___/ /_/  /_/\_,_/\_, (_)   \n \
+                                                   /___/     ")
+        self.turn_type = 'move' # start with move turn
+        self.turn = 0 # start with player 0
+        for player_number, player in enumerate(players):
+            position = player.choose_starting_position(self.board) # choose starting position
+            self.board[position[0]][position[1]][0] = player_number # update board
+            self.player_positions[player_number] = position # update internally stored position
 
         self.print_board()
 
-    def move_on_board(self, old_position, new_position, marker):
+    def move_on_board(self, old_position, new_position, player_number):
         """
         Updates the game board to reflect a movement action.
 
         :param old_position: [3x1] list of [y,x,z] coordinates representing old position on board
         :param new_position: [3x1] list of [y,x,z] coordinates representing new position on board
-        :param marker: marker associated with current player, marker = {'B' or 'O'}
+        :param player_number: int associated with current player
         """
-        self.board[old_position[0]][old_position[1]][0] = ''
-        self.board[new_position[0]][new_position[1]][0] = marker
+        self.board[old_position[0]][old_position[1]][0] = None
+        self.board[new_position[0]][new_position[1]][0] = player_number
+        self.player_positions[player_number] = new_position # update internally stored position
         self.print_board()
+        self.turn_type = 'build' # next turn type is build after a move
+        self.check_for_game_over()
 
     def build_on_board(self, build_position):
         """
@@ -112,177 +95,103 @@ class GameState:
         """
         self.board[build_position[0]][build_position[1]][1] = self.board[build_position[0]][build_position[1]][1] + 1
         self.print_board()
+        self.turn = (self.turn + 1) % self.num_players # switch to next player's turn after a build
+        self.turn_type = 'move' # next turn type is move after a build
+        self.check_for_game_over()
 
-    def update_player_position(self, position):
+    def check_for_game_over(self):
         """
-        Updates internally stored position of the Human player
+        Checks positions of each player and determines if a game_over state has been reached. This could be due to a
+        player reaching a height of 3, or a player running out of valid moves.
+        """
 
-        :param position: [3x1] list of [y,x,z] coordinates representing position on board
-        """
-        self.player_position = position
+        for player_number, position in enumerate(self.player_positions):
+            if player_number not in self.losers:
+                # check if a player has reached a height of 3 (win condition)
+                if position[2] == 3:
+                    self.flag = 'game_over'
+                    self.winner = player_number
+                    self.losers = self.players - {self.winner}
+                    print("Player {} wins!".format(player_number))
+                    return
+                # check if a player doesn't have any valid moves (that player loses)
+                if not Util.get_move_action_space(self.board, position) or \
+                   not Util.get_build_action_space(self.board, position):
 
-    def update_opponent_position(self, position):
-        """
-        Updates internally stored position of the AI agent
+                    self.losers.add(player_number)
+                    self.board[position[0]][position[1]][0] = None
+                    self.player_positions[player_number] = None
 
-        :param position: [3x1] list of [y,x,z] coordinates representing position on board
-        """
-        self.opponent_position = position
-
-    def deepCopy(self):
-        """
-        Helper function to deep-copy the current GameState object. Not currently in use.
-        :return: new_game: deep-copy of current GameState object
-        """
-        new_game = GameState()
-        new_game.board = copy.deepcopy(self.board)
-        new_game.flag = self.flag
-        new_game.turn = self.turn
-        new_game.turn_type = self.turn_type
-        return new_game
+                    # if every player but 1 has lost, game is now over
+                    if len(self.losers) == self.num_players - 1:
+                        self.flag = 'game_over'
+                        self.winner = (self.players - self.losers).pop() # use Set diff operation to find winner
+                        print("Player {} wins!".format(self.winner))
+                        return
+                    else:
+                        print("Player {} loses!".format(player_number))
+        return
 
 
 class Player:
     """
-    Implements a class to represent a Human player.
-    """
-
-    def __init__(self, game: GameState):
-        self.position = game.starting_player_position
-        self.player_marker = 'B'
-
-    def move(self, game: GameState):
-        """
-        Execute move turn for Human player.
-
-        :param game: GameState representation of the current game board. See class GameState
-        """
-
-        old_player_position = self.position.copy()
-
-        while True:
-            valid_moves = Util.get_move_action_space(copy.deepcopy(game.board), self.position)
-            if not valid_moves:
-                game.flag = "game_lost"
-                break
-            else:
-                movement = input("Select a move: Up (u), Down (d), Left (l), Right (r), Up-Left (ul), Up-Right (ur), Down-Left (dl), Down-Right (dr):   ")
-                print("\n")
-                new_pos = Util.move_logic(game.board, self.position, ('move', movement))
-
-                #check move validity
-                if Util.check_move_validity(game.board, self.position, new_pos):
-                    self.position = new_pos
-                    break
-                else:
-                    print("Not a valid move!")
-
-        if self.position[2] == 3:
-            game.flag = 'game_won'
-
-        game.move_on_board(old_player_position, self.position, self.player_marker)
-        game.update_player_position(self.position)
-
-    def build(self, game: GameState):
-        """
-        Execute build turn for Human player.
-
-        :param game: GameState representation of the current game board. See class GameState
-        """
-
-        while True:
-            building = input("Select where to build: Up (u), Down (d), Left (l), Right (r), Up-Left (ul), Up-Right (ur), Down-Left (dl), Down-Right (dr):   ")
-            print("\n")
-            build_loc = Util.move_logic(game.board, self.position, ('build', building))
-
-            if Util.check_build_validity(game.board, build_loc):
-                break
-            print("Not a valid build!")
-
-        game.build_on_board(build_loc)
-
-
-class Opponent:
-    """
     Implements an Opponent to play Santorini against. Uses one of the various Agent implementations such as FS or
     MiniMax to generate moves.
     """
-    def __init__(self, game: GameState, policy_type, self_play_type="opponent"):
+    def __init__(self, policy_type="Random", player_number=0):
         self.policy_type = policy_type
-        self.action = None
-        self.self_play_type = self_play_type
-
-        if self.self_play_type == "opponent":
-            self.position = game.starting_opponent_position
-            self.player_marker = 'O'
-        elif self_play_type == "player":
-            self.position = game.starting_player_position
-            self.player_marker = 'B'
-        else:
-            self.position = None
-            self.player_marker = None
+        self.player_number = player_number
 
         # chose policy Agent
         if policy_type == 'FS':
-            self.Agent = FSAgent(agent_type=self.self_play_type)
+            self.Agent = FSAgent(self.player_number)
         elif policy_type == 'Random':
-            self.Agent = RandomAgent(agent_type=self.self_play_type)
+            self.Agent = RandomAgent(self.player_number)
         elif policy_type == 'MiniMax':
-            self.Agent = MiniMaxAgent(agent_type=self.self_play_type)
+            self.Agent = MiniMaxAgent(self.player_number)
+        elif policy_type == 'HumanAgent':
+            self.Agent = HumanAgent(self.player_number)
         else:
             self.Agent = None
 
-    def move(self, game: GameState):
+    def choose_starting_position(self, board):
+        """
+        Function to choose a starting position on the board. Is called once during Game.start_game().
+        This is a wrapper function for an Agent's specific choose_starting_positon() member function
+
+        :param board: GameState representation of the current game board. See class GameState
+        :return: starting_position: a [3x1] List of [x, y, z] coordinates representing starting position
+        """
+        return self.Agent.choose_starting_position(board)
+
+    def move(self, game):
         """
         Execute a move turn for opponent. Chooses action generated by the policy Agent.
         :param game: GameState representation of the current game board. See class GameState
         """
 
-        if self.self_play_type == "opponent":
-            print("\nOpponent is moving...\n")
-        else:
-            print("\nPlayer is moving...\n")
+        print("\nPlayer {} is moving...\n".format(self.player_number))
 
-        old_opponent_position = self.position.copy()
-        self.action = self.Agent.getAction(game) # get action from Agent
+        old_position = game.player_positions[self.player_number].copy()
+        action = self.Agent.getAction(game) # get action from Agent
+        new_position = Util.move_logic(game.board, old_position, action)
+        game.move_on_board(old_position, new_position, self.player_number)
 
-        if not self.action:
-            if self.self_play_type == "opponent":
-                game.flag = "game_won" # player has won
-            else:
-                game.flag = "game_lost" # player has lost
-        else:
-            self.position = Util.move_logic(game.board, self.position, self.action)
-            if self.position[2] == 3:
-                if self.self_play_type == "opponent":
-                    game.flag = 'game_lost' # player has lost
-                else:
-                    game.flag = 'game_won' # player has won
+        print('\n')
 
-            game.move_on_board(old_opponent_position, self.position, self.player_marker)
-
-            if self.self_play_type == "opponent":
-                game.update_opponent_position(self.position)
-            else:
-                game.update_player_position(self.position)
-
-            print('\n')
-
-    def build(self, game: GameState):
+    def build(self, game):
         """
         Execute a build turn for opponent. Chooses action generated by the policy Agent.
         :param game: GameState representation of the current game board. See class GameState
         """
 
-        if self.self_play_type == "opponent":
-            print("\nOpponent is building...\n")
-        else:
-            print("\nPlayer is building...\n")
+        print("\nPlayer {} is building...\n".format(self.player_number))
 
-        self.action = self.Agent.getAction(game)
-        #print(self.action)
-        build_loc = Util.move_logic(game.board, self.position, self.action)
-        game.build_on_board(build_loc)
+        position = game.player_positions[self.player_number].copy()
+        action = self.Agent.getAction(game)
+        build_location = Util.move_logic(game.board, position, action)
+        game.build_on_board(build_location)
+
         print('\n')
 
 
@@ -296,49 +205,29 @@ def main():
     parser.add_argument("--agent", default="Random", type=str, help="Choose an opponent AI to play against", choices=['Random', 'FS', 'MiniMax'])
     parser.add_argument("--board_size", default=5, type=int, help="Board size", choices=[3, 4, 5])
     args = parser.parse_args()
-    agent_select = args.agent
 
     #run the program
-    game = GameState(args=args)
-    game.start_game()
+    player = Player(policy_type="HumanAgent", player_number=0)
+    opponent = Player(policy_type=args.agent, player_number=1)
+    players = [player, opponent]
+    args.num_players = len(players)
 
-    player = Player(game)
-    opponent = Opponent(game, agent_select)
+    game = GameState(args=args)
+    game.start_game(players)
 
     # main game loop
-    while True:
+    while game.flag != 'game_over':
+        for player in players:
+            if player.player_number not in game.losers:
+                player.move(game)
 
-        # Human player turn
-        game.turn = 'player'
-        game.turn_type = 'move'
-        player.move(game)
+                if game.flag == 'game_over':
+                    break
 
-        # check for player win/loss
-        if game.flag == 'game_won':
-            print("You Win!")
-            break
-        elif game.flag == 'game_lost':
-            print("You Lose!")
-            break
+                player.build(game)
 
-        game.turn_type = 'build'
-        player.build(game)
-
-        # AI opponent turn
-        game.turn = 'opponent'
-        game.turn_type = 'move'
-        opponent.move(game)
-
-        # check for opponent win
-        if game.flag == 'game_lost':
-            print("You Lose!")
-            break
-        elif game.flag == 'game_won':
-            print("You Win!")
-            break
-
-        game.turn_type = 'build'
-        opponent.build(game)
+                if game.flag == 'game_over':
+                    break
 
 
 if __name__ == '__main__':

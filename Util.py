@@ -51,7 +51,7 @@ def check_move_validity(board, start_pos, end_pos):
     """
     if end_pos[0] < 0 or end_pos[0] >= len(board[:][0]) or end_pos[1] < 0 or end_pos[1] >= len(board[0][:]):
         return False
-    if board[end_pos[0]][end_pos[1]][0] != 'B' and board[end_pos[0]][end_pos[1]][0] != 'O' \
+    if board[end_pos[0]][end_pos[1]][0] is None \
             and int(board[end_pos[0]][end_pos[1]][1]) <= int(start_pos[2]) + 1 \
             and end_pos[0] >= 0 and end_pos[1] >= 0 and board[end_pos[0]][end_pos[1]][1] < 4:
         return True
@@ -69,7 +69,7 @@ def check_build_validity(board, build_pos):
     if build_pos[0] < 0 or build_pos[0] >= len(board[:][0]) or build_pos[1] < 0 or build_pos[1] >= len(board[0][:]):
         return False
     if build_pos[0] >= 0 and build_pos[1] >= 0 and board[build_pos[0]][build_pos[1]][1] < 4 \
-            and board[build_pos[0]][build_pos[1]][0] != 'B' and board[build_pos[0]][build_pos[1]][0] != 'O':
+            and board[build_pos[0]][build_pos[1]][0] is None:
         return True
     return False
 

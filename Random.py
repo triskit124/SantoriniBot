@@ -1,5 +1,6 @@
 import Util
 import random
+import time
 
 
 class RandomAgent:
@@ -8,8 +9,19 @@ class RandomAgent:
     one randomly.
     """
 
-    def __init__(self , agent_type="opponent"):
-        self.agent_type = agent_type
+    def __init__(self , player_number):
+        self.player_number = player_number
+
+    def choose_starting_position(self, board):
+        """
+        Function to choose a starting position on the board. Is called once during Game.start_game()
+
+        :param board: GameState representation of the current game board. See class GameState
+        :return: starting_position: a [3x1] List of [x, y, z] coordinates representing starting position
+        """
+        avail = [[row, col] for row in range(len(board[0])) for col in range(len(board[:][0])) if board[row][col][0] is None]
+        position = random.choice(avail)
+        return [position[0], position[1], 0]
 
     def getAction(self, game):
         """
@@ -18,10 +30,10 @@ class RandomAgent:
         :param game: GameState representation of the current game board. See class GameState
         :return: a random action
         """
-        if self.agent_type == "opponent":
-            position = game.opponent_position
-        else:
-            position = game.player_position
+
+        position = game.player_positions[self.player_number].copy()
+
+        time.sleep(1.5) # pause for a bit so we can see what's happening
 
         if game.turn_type == 'move':
             #move
