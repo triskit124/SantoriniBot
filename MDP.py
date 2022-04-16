@@ -10,9 +10,9 @@ class MDP:
     """
 
     def __init__(self, gamma=0.99, d_solve=5):
-        self.gamma = gamma          # discount factor
-        self.d_solve = d_solve      # solve depth
-        self.player_marker = 'O'    # marker for the board
+        self.gamma = gamma                    # discount factor
+        self.d_solve = d_solve                # solve depth
+        self.player_number = None    # marker for the board
 
     def reward(self, board, position, action):
         """
@@ -44,7 +44,7 @@ class MDP:
             r = self.evaluation_function(board, position)
         return r
 
-    def transition(self, board, position, action, player_marker):
+    def transition(self, board, position, action, player_number):
         """
         Function to deterministically transition from current state to next state based on the action. Returns
         deep-copies of board and position.
@@ -52,7 +52,7 @@ class MDP:
         :param board: GameState representation of the current game board. See class GameState
         :param position: [3x1] list of [y,x,z] coordinates
         :param action: tuple of ('action', 'dir') where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
-        :param player_marker: either 'O' for opponent (AI) or 'P' for player (human)
+        :param player_number: int representing player index
         :return: new_board: deep-copied board for next state
         :return: new_position: copied position for next state
         """
@@ -60,10 +60,10 @@ class MDP:
 
         if action[0] == 'move':
             # move
-            old_opponent_position = position
+            old_position = position
             new_position = Util.move_logic(board, position, action)
-            new_board[old_opponent_position[0]][old_opponent_position[1]][0] = ''
-            new_board[new_position[0]][new_position[1]][0] = player_marker
+            new_board[old_position[0]][old_position[1]][0] = None
+            new_board[new_position[0]][new_position[1]][0] = player_number
         else:
             # build
             build_loc = Util.move_logic(board, position, action)

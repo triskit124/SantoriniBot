@@ -1,74 +1,57 @@
-import Game
+from Game import GameState, Player
 
 
-def self_play(num_games=1, opponent_type="Random", player_type="MiniMax"):
+def self_play(player_types, num_games=1):
 
-    wins = 0
-    losses = 0
-    results = []
     summary = {}
+    summary["games"] = []
+    for player_number, policy_type in enumerate(player_types):
+        summary[player_number] = {
+            "policy_type": policy_type,
+            "wins": 0,
+            "losses": 0,
+            "games_played": 0,
+            "win_percentage": 0,
+        }
 
     for _ in range(num_games):
 
         #run the program
-        game = Game.GameState(game_type='self_play')
-        game.start_game()
+        players = []
+        game = GameState()
 
-        opponent = Game.Opponent(game, opponent_type, self_play_type="opponent")
-        player = Game.Opponent(game, player_type, self_play_type="player")
+        for player_number, policy_type in enumerate(player_types):
+            players.append(Player(policy_type=policy_type, player_number=player_number))
+
+        game.start_game(players)
 
         turns = 0
-
-        while True:
+        while game.flag != 'game_over':
             turns += 1
-            # AI player turn
-            game.turn = 'player'
-            game.turn_type = 'move'
-            player.move(game)
+            for player in players:
+                player.move(game)
 
-            # check for player win
-            if game.flag == 'game_won':
-                print("You Win!")
-                break
-            elif game.flag == 'game_lost':
-                print("you lost!")
-                break
+                if game.flag == 'game_over':
+                    break
 
-            game.turn_type = 'build'
-            player.build(game)
+                player.build(game)
 
-            # AI opponent turn
-            game.turn = 'opponent'
-            game.turn_type = 'move'
-            opponent.move(game)
+                if game.flag == 'game_over':
+                    break
 
-            # check for opponent win
-            if game.flag == 'game_lost':
-                print("You Lose!")
-                break
-            elif game.flag == 'game_won':
-                print("you won!")
-                break
+        # write summary
+        summary[game.winner]["wins"] += 1
+        summary["games"].append((game.winner, turns))
+        for loser in game.losers:
+            summary[loser]["losses"] += 1
+        for player in game.players:
+            summary[player]["games_played"] += 1
+            summary[player]["win_percentage"] = 100 * summary[player]["wins"] / summary[player]["games_played"]
 
-            game.turn_type = 'build'
-            opponent.build(game)
-
-        if game.flag == 'game_won':
-            wins += 1
-        elif game.flag == 'game_lost':
-            losses += 1
-        results.append((game.flag, turns))
-
-    summary['wins'] = wins
-    summary['losses'] = losses
-    summary['games played'] = wins + losses
-    summary['win percentage'] = 100 * wins / (wins + losses)
-    return results, summary
+    return summary
 
 
 if __name__ == '__main__':
-    results, summary = self_play(num_games=10, opponent_type="MiniMax", player_type="FS")
-
-    print(results)
+    summary = self_play(["FS", "MiniMax"], num_games=10)
     print(summary)
 

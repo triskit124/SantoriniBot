@@ -11,105 +11,102 @@ class MiniMaxAgent:
     self.evaluation_function().
     """
 
-    def __init__(self, agent_type="opponent"):
-        self.d = 10                      # solve depth
+    def __init__(self, player_number):
+        self.d = 10                     # solve depth
         self.alpha = -math.inf          # max cutoff for min action
         self.beta = math.inf            # min cutoff for max action
-        self.agent_type = agent_type
+        self.player_number = player_number
 
-    def transition(self, board, position, action, player_marker):
+    def choose_starting_position(self, board):
+        """
+        Function to choose a starting position on the board. Is called once during Game.start_game()
+
+        :param board: GameState representation of the current game board. See class GameState
+        :return: starting_position: a [3x1] List of [x, y, z] coordinates representing starting position
+        """
+        avail = [[row, col] for row in range(len(board[0])) for col in range(len(board[:][0])) if board[row][col][0] is None]
+        position = random.choice(avail)
+        return [position[0], position[1], 0]
+
+    def transition(self, board, player_positions, action, player_number):
         """
         Function to deterministically transition from current state to next state based on the action. Returns
         deep-copies of board and position.
 
         :param board: GameState representation of the current game board. See class GameState
-        :param position: [3x1] list of [y,x,z] coordinates
+        :param player_positions: list of [y,x,z] coordinates of each Player
         :param action: tuple of ('action', 'dir') where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
-        :param player_marker: either 'O' for opponent (AI) or 'P' for player (human)
+        :param player_number: int representing index of Player taking the action
         :return: new_board: deep-copied board for next state
         :return: new_position: copied position for next state
         """
         new_board = copy.deepcopy(board)
+        new_positions = copy.deepcopy(player_positions)
 
         if action[0] == 'move':
-            old_opponent_position = position
-            new_position = Util.move_logic(board, position, action)
-            new_board[old_opponent_position[0]][old_opponent_position[1]][0] = ''
-            new_board[new_position[0]][new_position[1]][0] = player_marker
+            old_position = player_positions[player_number]
+            new_position = Util.move_logic(board, old_position, action)
+
+            new_positions[player_number] = new_position
+            new_board[old_position[0]][old_position[1]][0] = None
+            new_board[new_position[0]][new_position[1]][0] = player_number
         else:
-            build_loc = Util.move_logic(board, position, action)
+            build_loc = Util.move_logic(board, player_positions[player_number], action)
             new_board[build_loc[0]][build_loc[1]][1] = board[build_loc[0]][build_loc[1]][1] + 1
-            new_position = copy.deepcopy(position)
-        return new_board, new_position
+        return new_board, new_positions
 
-    def evaluation_function(self, board, player_position, opponent_position):
+    def evaluation_function(self, board, player_positions):
         """
-        Function to evaluate the value of a board based on heuristics ("expert" knowledge)
-
-        :param board: GameState representation of the current game board. See class GameState
-        :param player_position: [3x1] list of [y,x,z] coordinates for Player (human)
-        :param opponent_position: [3x1] list of [y,x,z] coordinates for Opponent (AI)
-        :return: heuristic_score: the value of the current board
+        DEPRECATED. Function to evaluate the value of a board based on heuristics ("expert" knowledge)
         """
-        heuristic_score = 0
-        for x in range(len(board[0])):
-            for y in range(len(board[0])):
-                # add score if AI is closer to higher tiles
-                ro = math.sqrt((opponent_position[0] - y) ** 2 + (opponent_position[1] - x) ** 2)
-                if ro != 0:
-                    heuristic_score += board[y][x][1] / ro
 
-                # remove score if Human is closer to higher tiles
-                rp = math.sqrt((player_position[0] - y) ** 2 + (player_position[1] - x) ** 2)
-                if rp != 0:
-                    heuristic_score -= board[y][x][1] / rp
-        #return heuristic_score
         return 0 # Turning off heuristic score
 
-    def alphabeta(self, board, player_position, opponent_position, alpha, beta, d_solve, agent, action_type):
+    def alphabeta(self, board, num_players, player_positions, alpha, beta, d_solve, agent, action_type):
         """
         Implementation of mini-max search with alpha-beta pruning.
 
         :param board: GameState representation of the current game board. See class GameState
-        :param player_position: [3x1] list of [y,x,z] coordinates for Player (human)
-        :param opponent_position: [3x1] list of [y,x,z] coordinates for Opponent (AI)
+        :param num_players: int representing number of Players in game
+        :param player_positions: list of [y,x,z] coordinates for each Player
         :param alpha: upper-bound cutoff for min ply
         :param beta:  lower-bound cutoff for max ply
         :param d_solve: solve depth
-        :param agent: string representing who's turn it is, agent = {'player' or 'opponent'}
+        :param agent: int representing who's turn it is (zero indexed)
         :param action_type: string representing what type of turn it is, action_type = {'move' or 'build'}
         :return: value: value of the root node after minimax search
         :return: action: greedy action corresponding to best value at root-node
         """
 
         # end states
-        if player_position[2] == 3:
-            return -math.inf, None # if human is at level 3, this is a loss state for the AI
-        if opponent_position[2] == 3:
-            return math.inf, None # if AI is at level 3, this is a win state for the AI
+        if player_positions[agent][2] == 3:
+            if agent == self.player_number:
+                return math.inf, None # this agent has won
+            else:
+                return -math.inf, None  # another player has won
+
         if d_solve == 0:
-            return self.evaluation_function(board, player_position, opponent_position), None # return heuristic
+            return self.evaluation_function(board, player_positions), None # return heuristic
 
         # minimizing agent
-        if agent == 'player':
+        if agent != self.player_number:
             value = math.inf
             values = []
             if action_type == 'move':
-                actions = Util.get_move_action_space(board, player_position)
+                actions = Util.get_move_action_space(board, player_positions[agent])
                 random.shuffle(actions)
-                next_agent = 'player'
+                next_agent = agent
                 next_action = 'build'
             else:
-                actions = Util.get_build_action_space(board, player_position)
+                actions = Util.get_build_action_space(board, player_positions[agent])
                 random.shuffle(actions)
-                next_agent = 'opponent'
+                next_agent = (agent + 1) % num_players
                 next_action = 'move'
             if not actions:
-                return self.evaluation_function(board, player_position, opponent_position), None
+                return self.evaluation_function(board, player_positions), None
             for action in actions:
-                new_board, new_player_position = self.transition(board, player_position, action, 'B')
-                new_opponent_position = copy.deepcopy(opponent_position)
-                value = min(value, self.alphabeta(new_board, new_player_position, new_opponent_position, alpha, beta, d_solve - 1, next_agent, next_action)[0])
+                new_board, new_positions = self.transition(board, player_positions, action, agent)
+                value = min(value, self.alphabeta(new_board, num_players, new_positions, alpha, beta, d_solve - 1, next_agent, next_action)[0])
                 values.append(value)
                 if value <= alpha:
                     break
@@ -121,27 +118,26 @@ class MiniMaxAgent:
             value = -math.inf
             values = []
             if action_type == 'move':
-                actions = Util.get_move_action_space(board, opponent_position)
+                actions = Util.get_move_action_space(board, player_positions[agent])
                 random.shuffle(actions)
-                next_agent = 'opponent'
+                next_agent = agent
                 next_action = 'build'
             else:
-                actions = Util.get_build_action_space(board, opponent_position)
+                actions = Util.get_build_action_space(board, player_positions[agent])
                 random.shuffle(actions)
-                next_agent = 'player'
+                next_agent = (agent + 1) % num_players
                 next_action = 'move'
             if not actions:
-                return self.evaluation_function(board, player_position, opponent_position), None
+                return self.evaluation_function(board, player_positions), None
             for action in actions:
-                new_board, new_opponent_position = self.transition(board, opponent_position, action, 'O')
-                new_player_position = copy.deepcopy(player_position)
-                value = max(value, self.alphabeta(new_board, new_player_position, new_opponent_position, alpha, beta, d_solve - 1, next_agent, next_action)[0])
+                new_board, new_positions = self.transition(board, player_positions, action, agent)
+                value = max(value, self.alphabeta(new_board, num_players, new_positions, alpha, beta, d_solve - 1, next_agent, next_action)[0])
                 values.append(value)
                 if value >= beta:
                     break
                 alpha = max(alpha, value)
             #if d_solve == self.d:
-            #    print(actions, values)
+                #print(actions, values)
             return value, actions[values.index(value)]
 
     def getAction(self, game):
@@ -152,25 +148,9 @@ class MiniMaxAgent:
         :return: action: greedy action corresponding to best value at root-node
         """
 
-        # this is hacky, but if this agent is in self-play and is actially a "Player", need to swap inputs into the alphabeta call
-        # alphabeta() assumed the "opponent" is maximizer and "player" is minimizer for everything. Very confusing if you
-        # want two minimaxes to play each other!
-        if self.agent_type == "opponent":
-            dummy_board = copy.deepcopy(game.board)
-            dummy_opponent_position = copy.deepcopy(game.opponent_position)
-            dummy_player_position = copy.deepcopy(game.player_position)
-            turn = game.turn
-            turn_type = game.turn_type
-        else:
-            dummy_board = copy.deepcopy(game.board)
-            dummy_opponent_position = copy.deepcopy(game.player_position)
-            dummy_player_position = copy.deepcopy(game.opponent_position)
-            if game.turn == "player":
-                turn = "opponent"
-            else:
-                turn = "player"
-            turn_type = game.turn_type
+        board_copy = copy.deepcopy(game.board)
+        positions_copy = copy.deepcopy(game.player_positions)
+        num_players = game.num_players
 
-        v, action = self.alphabeta(dummy_board, dummy_player_position, dummy_opponent_position, self.alpha, self.beta, self.d, turn, turn_type)
-        #print(v)
+        v, action = self.alphabeta(board_copy, num_players, positions_copy, self.alpha, self.beta, self.d, game.turn, game.turn_type)
         return action

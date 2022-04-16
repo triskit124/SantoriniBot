@@ -1,5 +1,6 @@
 import Util
 import copy
+import random
 from MDP import MDP
 
 
@@ -13,13 +14,20 @@ class FSAgent(MDP):
     Inherits from parent class, MDP.
     """
 
-    def __init__(self, agent_type="opponent"):
+    def __init__(self, player_number):
         super().__init__()
+        self.player_number = player_number
 
-        self.agent_type = agent_type
+    def choose_starting_position(self, board):
+        """
+        Function to choose a starting position on the board. Is called once during Game.start_game()
 
-        if self.agent_type == "player":
-            self.player_marker = "B"
+        :param board: GameState representation of the current game board. See class GameState
+        :return: starting_position: a [3x1] List of [x, y, z] coordinates representing starting position
+        """
+        avail = [[row, col] for row in range(len(board[0])) for col in range(len(board[:][0])) if board[row][col][0] is None]
+        position = random.choice(avail)
+        return [position[0], position[1], 0]
 
     def forward_search(self, board, position, d_solve, action_type):
         """
@@ -49,7 +57,7 @@ class FSAgent(MDP):
         for action in actions:
             # take action and recurse
             v = self.reward(board, position, action)
-            new_board, new_position = self.transition(board, position, action, self.player_marker)
+            new_board, new_position = self.transition(board, position, action, self.player_number)
             a_prime, v_prime = self.forward_search(new_board, new_position, d_solve - 1, next_action)
             v = v + (self.gamma * v_prime)
             if v > v_star:
@@ -64,14 +72,9 @@ class FSAgent(MDP):
         :param game: GameState representation of the current game board. See class GameState
         :return: action: greedy action corresponding to best value at root-node
         """
-        dummy_board = copy.deepcopy(game.board)
+        board = copy.deepcopy(game.board)
+        position = game.player_positions[self.player_number].copy()
 
-        if self.agent_type == "opponent":
-            dummy_position = copy.deepcopy(game.opponent_position)
-        else:
-            dummy_position = copy.deepcopy(game.player_position)
-
-        action, v = self.forward_search(dummy_board, dummy_position, self.d_solve, game.turn_type)
-        #print(v)
+        action, v = self.forward_search(board, position, self.d_solve, game.turn_type)
         return action
 
