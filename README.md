@@ -2,6 +2,8 @@
 
 ## Creating some AIs to play the board game, [Santorini](https://boardgamegeek.com/boardgame/194655/santorini)
 
+**_Note:_** I do not claim any affiliation with Santorini. All credit goes to the developers.
+
 ### Agents (from easiest to mediumest difficulty):
 - **RandomAgent** (very easy)
   - See `Random.py` for implementation. 
