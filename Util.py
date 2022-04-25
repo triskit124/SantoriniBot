@@ -110,6 +110,23 @@ def get_build_action_space(board, position):
     return action_list
 
 
+def get_action_space(board, position, action_type):
+    if action_type == 'move':
+        return get_move_action_space(board, position)
+    else:
+        return get_build_action_space(board, position)
+
+
+def what_is_next_turn(player_positions, agent, action_type):
+    if action_type == 'move':
+        next_agent = agent
+        next_action = 'build'
+    else:
+        next_agent = (agent + 1) % len(player_positions)
+        next_action = 'move'
+    return next_agent, next_action
+
+
 def get_all_actions(action_type):
     """
     Returns a list of all actions disregarding building/movement rules
@@ -122,3 +139,73 @@ def get_all_actions(action_type):
     else:
         return [('build', 'u'), ('build', 'd'), ('build', 'l'), ('build', 'r'), ('build', 'ul'), ('build', 'ur'), ('build', 'dl'), ('build', 'dr')]
 
+
+def boardToStringBoard(board):
+    """
+    Converts a typical board representation into a string for Dict hashing using in MCTS
+    :param board: GameState representation of the current game board. See class GameState
+    :return: board_string: flattened string representation of board
+    """
+    import numpy as np
+    import copy
+
+    new_board = copy.deepcopy(board)
+    for row in range(len(board)):
+        for col in range(len(board)):
+            if board[row][col][0] is None:
+                new_board[row][col][0] = 99
+    return str(np.array(new_board).flatten())
+
+
+def boardsToNNBoard(boards):
+    """
+    Converts a typical board representation into a representation for use in neural networks
+    :param board: GameState representation of the current game board. See class GameState
+    :return: board_string: flattened string representation of board
+    """
+    import torch
+    num_batches = len(boards)
+    new_boards = torch.zeros(num_batches, 2, len(boards[0]), len(boards[0]))
+
+    for b in range(num_batches):
+        board = boards[b]
+        for row in range(len(board)):
+            for col in range(len(board)):
+                if board[row][col][0] is None:
+                    new_boards[b][0][row][col] = 99
+                else:
+                    new_boards[b][0][row][col] = board[row][col][0]
+                new_boards[b][1][row][col] = board[row][col][1]
+
+    return torch.Tensor(new_boards) # returns tensor of size [2, board_x, board_y]
+
+
+def transition(board, player_positions, action, player_number):
+    """
+    Function to deterministically transition from current state to next state based on the action. Returns
+    deep-copies of board and position.
+
+    :param board: GameState representation of the current game board. See class GameState
+    :param player_positions: list of [x,y,z] coordinates of each player
+    :param action: tuple of ('action', 'dir') where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
+    :param player_number: int, representing player index
+    :return: new_board: deep-copied board for next state
+    :return: new_position: copied position for next state
+    """
+
+    import copy
+
+    new_board = copy.deepcopy(board)
+    new_positions = copy.deepcopy(player_positions)
+
+    if action[0] == 'move':
+        old_position = player_positions[player_number]
+        new_position = move_logic(board, old_position, action)
+
+        new_positions[player_number] = new_position
+        new_board[old_position[0]][old_position[1]][0] = None
+        new_board[new_position[0]][new_position[1]][0] = player_number
+    else:
+        build_loc = move_logic(board, player_positions[player_number], action)
+        new_board[build_loc[0]][build_loc[1]][1] = board[build_loc[0]][build_loc[1]][1] + 1
+    return new_board, new_positions

@@ -5,29 +5,36 @@ from FS import FSAgent
 from Random import RandomAgent
 from MiniMax import MiniMaxAgent
 from HumanPlayer import HumanAgent
+from NN import NNAgent
 
 
 class GameState:
     """
     Implements the state of the game. Keeps track of all state variables, including player positions and the game board.
     """
-    def __init__(self, args):
+    def __init__(self, args=None):
+
+        if args is None:
+            self.num_players = 2
+            self.board_size = 5
+        else:
+            self.num_players = args.num_players
+            self.board_size = args.board_size
 
         # players
-        self.num_players = args.num_players
         self.players = set(range(self.num_players))
         self.player_positions = [None for _ in range(self.num_players)]
         self.winner = None
         self.losers = set()
 
         # board
-        self.board_size = args.board_size
         self.board = [[[None, 0] for i in range(self.board_size)] for j in range(self.board_size)]
 
         # state
         self.flag = None # flag to keep track of game over state
         self.turn = None # [int] index that keeps track of whose turn it is
         self.turn_type = None # [string] what type of turn, 'move' or 'build'
+        self.verbose = False
 
     def print_board(self):
         """
@@ -47,22 +54,23 @@ class GameState:
             3: "\U0001F7E5",
             4: "\U0001F535",
         }
-        for i in range(self.board_size):
-            for j in range(self.board_size):
-                print(player_print_dict[self.board[i][j][0]], height_print_dict[self.board[i][j][1]], '  ', end='')
-            print('\n')
+        if self.verbose:
+            for i in range(self.board_size):
+                for j in range(self.board_size):
+                    print(player_print_dict[self.board[i][j][0]], height_print_dict[self.board[i][j][1]], '  ', end='')
+                print('\n')
 
     def start_game(self, players):
         """
         Initializes the game.
         """
-
-        print("                                       \n \
-                       __       __        ___  __          __ \n \
-                      / /  ___ / /____   / _ \/ /__ ___ __/ / \n \
-                     / /__/ -_) __(_-<  / ___/ / _ `/ // /_/  \n \
-                    /____/\__/\__/___/ /_/  /_/\_,_/\_, (_)   \n \
-                                                   /___/     ")
+        if self.verbose:
+            print("                                       \n \
+                           __       __        ___  __          __ \n \
+                          / /  ___ / /____   / _ \/ /__ ___ __/ / \n \
+                         / /__/ -_) __(_-<  / ___/ / _ `/ // /_/  \n \
+                        /____/\__/\__/___/ /_/  /_/\_,_/\_, (_)   \n \
+                                                       /___/     ")
         self.turn_type = 'move' # start with move turn
         self.turn = 0 # start with player 0
         for player_number, player in enumerate(players):
@@ -138,7 +146,7 @@ class Player:
     Implements an Opponent to play Santorini against. Uses one of the various Agent implementations such as FS or
     MiniMax to generate moves.
     """
-    def __init__(self, policy_type="Random", player_number=0):
+    def __init__(self, policy_type="Random", player_number=0, loadModel=False, checkpoint=None):
         self.policy_type = policy_type
         self.player_number = player_number
 
@@ -151,6 +159,8 @@ class Player:
             self.Agent = MiniMaxAgent(self.player_number)
         elif policy_type == 'HumanAgent':
             self.Agent = HumanAgent(self.player_number)
+        elif policy_type == "NN":
+            self.Agent = NNAgent(self.player_number)
         else:
             self.Agent = None
 
@@ -170,14 +180,16 @@ class Player:
         :param game: GameState representation of the current game board. See class GameState
         """
 
-        print("\nPlayer {} is moving...\n".format(self.player_number))
+        if game.verbose:
+            print("\nPlayer {} is moving...\n".format(self.player_number))
 
         old_position = game.player_positions[self.player_number].copy()
         action = self.Agent.getAction(game) # get action from Agent
         new_position = Util.move_logic(game.board, old_position, action)
         game.move_on_board(old_position, new_position, self.player_number)
 
-        print('\n')
+        if game.verbose:
+            print('\n')
 
     def build(self, game):
         """
@@ -185,14 +197,16 @@ class Player:
         :param game: GameState representation of the current game board. See class GameState
         """
 
-        print("\nPlayer {} is building...\n".format(self.player_number))
+        if game.verbose:
+            print("\nPlayer {} is building...\n".format(self.player_number))
 
         position = game.player_positions[self.player_number].copy()
         action = self.Agent.getAction(game)
         build_location = Util.move_logic(game.board, position, action)
         game.build_on_board(build_location)
 
-        print('\n')
+        if game.verbose:
+            print('\n')
 
 
 def main():
