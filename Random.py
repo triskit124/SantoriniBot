@@ -9,7 +9,7 @@ class RandomAgent:
     one randomly.
     """
 
-    def __init__(self , player_number):
+    def __init__(self, config, player_number):
         self.player_number = player_number
 
     def choose_starting_position(self, board):

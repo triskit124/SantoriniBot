@@ -1,12 +1,11 @@
 from Game import GameState, Player
+import ConfigHandler
 import copy
 
 
-def self_play(players, num_games=1):
+def self_play(config, players, num_games=1):
 
-    summary = {}
-    summary["games"] = []
-    summary["trainExamples"] = []
+    summary = {"games": [], "trainExamples": []}
     for player_number, player in enumerate(players):
         summary[player_number] = {
             "policy_type": player.policy_type,
@@ -20,7 +19,7 @@ def self_play(players, num_games=1):
 
         #run the program
         print("\nPlaying game {}...\n".format(i))
-        game = GameState()
+        game = GameState(config=config)
         game.start_game(players)
 
         game_train_examples = []
@@ -28,14 +27,20 @@ def self_play(players, num_games=1):
         while game.flag != 'game_over':
             turns += 1
             for player in players:
+                example = [copy.deepcopy(game.board), game.turn, game.turn_type, None, None]
                 player.move(game)
-                game_train_examples.append((copy.deepcopy(game.board), game.turn, game.turn_type, player.Agent.pi, None))
+                if player.policy_type == 'NN':
+                    example[3] = player.Agent.pi
+                game_train_examples.append(tuple(example))
 
                 if game.flag == 'game_over':
                     break
 
+                example = [copy.deepcopy(game.board), game.turn, game.turn_type, None, None]
                 player.build(game)
-                game_train_examples.append((copy.deepcopy(game.board), game.turn, game.turn_type, player.Agent.pi, None))
+                if player.policy_type == 'NN':
+                    example[3] = player.Agent.pi
+                game_train_examples.append(tuple(example))
 
                 if game.flag == 'game_over':
                     break
@@ -56,10 +61,10 @@ def self_play(players, num_games=1):
 
 
 if __name__ == '__main__':
-    players = [
-        Player("FS", player_number=0),
-        Player("MiniMax", player_number=1)
-    ]
-    summary = self_play(players, num_games=10)
+    # load in config file
+    config = ConfigHandler.read_config('config/simple.ini')
+
+    players = [Player(config, policy_type=config['Game']['agent_{}'.format(i)], player_number=i) for i in range(config.getint('Game', 'num_players'))]
+    summary = self_play(config, players, num_games=1)
     print(summary)
 

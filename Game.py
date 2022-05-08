@@ -1,5 +1,6 @@
 import argparse
 import Util
+import ConfigHandler
 
 from FS import FSAgent
 from Random import RandomAgent
@@ -12,14 +13,11 @@ class GameState:
     """
     Implements the state of the game. Keeps track of all state variables, including player positions and the game board.
     """
-    def __init__(self, args=None):
+    def __init__(self, config):
 
-        if args is None:
-            self.num_players = 2
-            self.board_size = 5
-        else:
-            self.num_players = args.num_players
-            self.board_size = args.board_size
+        self.config = config
+        self.num_players = self.config.getint('Game', 'num_players')
+        self.board_size = self.config.getint('Game', 'board_size')
 
         # players
         self.players = set(range(self.num_players))
@@ -34,12 +32,13 @@ class GameState:
         self.flag = None # flag to keep track of game over state
         self.turn = None # [int] index that keeps track of whose turn it is
         self.turn_type = None # [string] what type of turn, 'move' or 'build'
-        self.verbose = False
+        self.verbose = self.config.getboolean('Game', 'verbose') # print information to the console
 
     def print_board(self):
         """
         Helper function to print the current game board to the command line.
         """
+        # maps player numbers to emojis
         player_print_dict = {
             None: "  ",
             0: "\U0001F477",
@@ -47,6 +46,7 @@ class GameState:
             2: "\U0001F916",
             3: "\U0001F916"
         }
+        # maps square height to emojis
         height_print_dict = {
             0: "\N{white large square} ",
             1: "\U0001F7E8",
@@ -146,23 +146,23 @@ class Player:
     Implements an Opponent to play Santorini against. Uses one of the various Agent implementations such as FS or
     MiniMax to generate moves.
     """
-    def __init__(self, policy_type="Random", player_number=0, loadModel=False, checkpoint=None):
+    def __init__(self, config, policy_type="Random", player_number=0):
         self.policy_type = policy_type
         self.player_number = player_number
 
         # chose policy Agent
         if policy_type == 'FS':
-            self.Agent = FSAgent(self.player_number)
+            self.Agent = FSAgent(config, self.player_number)
         elif policy_type == 'Random':
-            self.Agent = RandomAgent(self.player_number)
+            self.Agent = RandomAgent(config, self.player_number)
         elif policy_type == 'MiniMax':
-            self.Agent = MiniMaxAgent(self.player_number)
-        elif policy_type == 'HumanAgent':
-            self.Agent = HumanAgent(self.player_number)
+            self.Agent = MiniMaxAgent(config, self.player_number)
+        elif policy_type == 'Human':
+            self.Agent = HumanAgent(config, self.player_number)
         elif policy_type == "NN":
-            self.Agent = NNAgent(self.player_number)
+            self.Agent = NNAgent(config, self.player_number)
         else:
-            self.Agent = None
+            raise Exception("Invalid Agent selection '{}' for player {}!".format(policy_type, player_number))
 
     def choose_starting_position(self, board):
         """
@@ -213,20 +213,27 @@ def main():
     """
     Runs a game of Santorini with an AI adversary.
     """
-
-    # parse command-line inputs
+    # parse command-line inputs (these will override config.ini settings)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agent", default="Random", type=str, help="Choose an opponent AI to play against", choices=['Random', 'FS', 'MiniMax'])
-    parser.add_argument("--board_size", default=5, type=int, help="Board size", choices=[3, 4, 5])
+    parser.add_argument("--agent", type=str, help="Choose an opponent AI to play against", choices=['Random', 'FS', 'MiniMax'])
+    parser.add_argument("--board_size", type=int, help="Board size", choices=[3, 4, 5])
     args = parser.parse_args()
 
-    #run the program
-    player = Player(policy_type="HumanAgent", player_number=0)
-    opponent = Player(policy_type=args.agent, player_number=1)
-    players = [player, opponent]
-    args.num_players = len(players)
+    # load in config file
+    config = ConfigHandler.read_config('config/simple.ini')
 
-    game = GameState(args=args)
+    # override config settings with command line args
+    if args.board_size is not None:
+        config['Game']['board_size'] = str(args.board_size)
+    if args.agent is not None:
+        config['Game']['agent_1'] = str(args.agent)
+
+    #run the program
+    #player = Player(policy_type="HumanAgent", player_number=0)
+    #opponent = Player(policy_type=args.agent, player_number=1)
+    players = [Player(policy_type=config['Game']['agent_{}'.format(i)], player_number=i) for i in range(config.getint('Game', 'num_players'))]
+
+    game = GameState(config=config)
     game.start_game(players)
 
     # main game loop

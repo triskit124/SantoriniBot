@@ -14,8 +14,8 @@ class FSAgent(MDP):
     Inherits from parent class, MDP.
     """
 
-    def __init__(self, player_number):
-        super().__init__()
+    def __init__(self, config, player_number):
+        super().__init__(config)
         self.player_number = player_number
 
     def choose_starting_position(self, board):

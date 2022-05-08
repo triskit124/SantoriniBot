@@ -140,7 +140,7 @@ def get_all_actions(action_type):
         return [('build', 'u'), ('build', 'd'), ('build', 'l'), ('build', 'r'), ('build', 'ul'), ('build', 'ur'), ('build', 'dl'), ('build', 'dr')]
 
 
-def boardToStringBoard(board):
+def boardToStringBoard(board, agent, action_type):
     """
     Converts a typical board representation into a string for Dict hashing using in MCTS
     :param board: GameState representation of the current game board. See class GameState
@@ -152,32 +152,53 @@ def boardToStringBoard(board):
     new_board = copy.deepcopy(board)
     for row in range(len(board)):
         for col in range(len(board)):
+
+            # assign players (+1 if current player, -1 if opponent, 0 if empty)
             if board[row][col][0] is None:
-                new_board[row][col][0] = 99
+                new_board[row][col][0] = 0
+            elif board[row][col][0] == agent:
+                new_board[row][col][0] = 1
+            else:
+                new_board[row][col][0] = -1
+
     return str(np.array(new_board).flatten())
 
 
-def boardsToNNBoard(boards):
+def boardsToNNBoards(boards, turns, turn_types):
     """
     Converts a typical board representation into a representation for use in neural networks
     :param board: GameState representation of the current game board. See class GameState
     :return: board_string: flattened string representation of board
     """
     import torch
-    num_batches = len(boards)
-    new_boards = torch.zeros(num_batches, 2, len(boards[0]), len(boards[0]))
+    num_examples = len(boards)
+    new_boards = torch.zeros(num_examples, 3, len(boards[0]), len(boards[0]))
 
-    for b in range(num_batches):
-        board = boards[b]
+    for e in range(num_examples):
+        board = boards[e]
+        turn = turns[e]
+        turn_type = turn_types[e]
         for row in range(len(board)):
             for col in range(len(board)):
-                if board[row][col][0] is None:
-                    new_boards[b][0][row][col] = 99
-                else:
-                    new_boards[b][0][row][col] = board[row][col][0]
-                new_boards[b][1][row][col] = board[row][col][1]
 
-    return torch.Tensor(new_boards) # returns tensor of size [2, board_x, board_y]
+                # assign turn type to layer 0 (-1 if move, +1 if build)
+                if turn_type == 'move':
+                    new_boards[e][0][row][col] = -1
+                else:
+                    new_boards[e][0][row][col] = 1
+
+                # assign players to layer 1 (+1 if current player, -1 if opponent, 0 if empty)
+                if board[row][col][0] is None:
+                    new_boards[e][1][row][col] = 0
+                elif board[row][col][0] == turn:
+                    new_boards[e][1][row][col] = 1
+                else:
+                    new_boards[e][1][row][col] = -1
+
+                # assign build height to layer 2
+                new_boards[e][2][row][col] = board[row][col][1]
+
+    return torch.Tensor(new_boards) # returns tensor of size [num_examples, 3, board_x, board_y]
 
 
 def transition(board, player_positions, action, player_number):

@@ -11,10 +11,10 @@ class MiniMaxAgent:
     self.evaluation_function().
     """
 
-    def __init__(self, player_number):
-        self.d = 10                     # solve depth
-        self.alpha = -math.inf          # max cutoff for min action
-        self.beta = math.inf            # min cutoff for max action
+    def __init__(self, config, player_number):
+        self.d = config.getint('MiniMax', 'd')      # solve depth
+        self.alpha = -math.inf                      # max cutoff for min action
+        self.beta = math.inf                        # min cutoff for max action
         self.player_number = player_number
 
     def choose_starting_position(self, board):
