@@ -149,6 +149,7 @@ class Player:
     def __init__(self, config, policy_type="Random", player_number=0):
         self.policy_type = policy_type
         self.player_number = player_number
+        print(policy_type)
 
         # chose policy Agent
         if policy_type == 'FS':

@@ -18,7 +18,7 @@ def self_play(config, players, num_games=1):
     for i in range(num_games):
 
         #run the program
-        print("\nPlaying game {}...\n".format(i))
+        print("Playing game {}...".format(i))
         game = GameState(config=config)
         game.start_game(players)
 
@@ -29,7 +29,7 @@ def self_play(config, players, num_games=1):
             for player in players:
                 example = [copy.deepcopy(game.board), game.turn, game.turn_type, None, None]
                 player.move(game)
-                if player.policy_type == 'NN':
+                if player.policy_type == 'NN' or player.policy_type == 'MiniMax':
                     example[3] = player.Agent.pi
                 game_train_examples.append(tuple(example))
 
@@ -38,7 +38,7 @@ def self_play(config, players, num_games=1):
 
                 example = [copy.deepcopy(game.board), game.turn, game.turn_type, None, None]
                 player.build(game)
-                if player.policy_type == 'NN':
+                if player.policy_type == 'NN' or player.policy_type == 'MiniMax':
                     example[3] = player.Agent.pi
                 game_train_examples.append(tuple(example))
 
@@ -65,6 +65,6 @@ if __name__ == '__main__':
     config = ConfigHandler.read_config('config/simple.ini')
 
     players = [Player(config, policy_type=config['Game']['agent_{}'.format(i)], player_number=i) for i in range(config.getint('Game', 'num_players'))]
-    summary = self_play(config, players, num_games=1)
+    summary = self_play(config, players, num_games=config.getint('Arena', 'num_games'))
     print(summary)
 

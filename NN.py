@@ -192,7 +192,7 @@ class NNAgent:
         self.Ns[s] += 1
         return v * (-1) ** (next_agent != agent)
 
-    def train(self, trainExamples, validationExamples):
+    def train(self, trainExamples):
         """
         Function to train the agent's neural network using training datasets
 
@@ -203,20 +203,6 @@ class NNAgent:
         """
         num_batches = int(len(trainExamples) / self.model.batch_size)
 
-        if validationExamples:
-            #test loss with validation set
-            val_boards, val_turns, val_turn_types, val_pis, val_vs = [], [], [], [], []
-            for example in validationExamples:
-                val_boards.append(example[0])
-                val_turns.append(example[1])
-                val_turn_types.append(example[2])
-                val_pis.append(example[3])
-                val_vs.append(example[4])
-
-            val_boards = Util.boardsToNNBoards(val_boards, val_turns, val_turn_types)
-            val_expected_pis = torch.FloatTensor(np.array(val_pis))
-            val_expected_vs = torch.FloatTensor(np.array(val_vs).astype(np.float64))
-
         for epoch in range(self.model.epochs):
             self.model.train()
             print("Training epoch {}...".format(self.epoch))
@@ -225,6 +211,7 @@ class NNAgent:
                 # pick out random samples
                 idx = np.random.randint(len(trainExamples), size=self.model.batch_size)
                 boards, turns, turn_types, pis, vs = [], [], [], [], []
+                # TODO: need to speed this up
                 for i in idx:
                     example = trainExamples[i]
                     boards.append(example[0])
@@ -237,7 +224,6 @@ class NNAgent:
                 expected_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                 # Predict
-                # TODO
                 predicted_pis, predicted_vs = self.model(NN_boards)
                 loss_pi = -torch.sum(expected_pis * predicted_pis) / expected_pis.size()[0]
                 loss_v = torch.sum((expected_vs - predicted_vs.view(-1)) ** 2) / expected_vs.size()[0]
@@ -249,15 +235,6 @@ class NNAgent:
                 self.optimizer.zero_grad()
                 total_loss.backward()
                 self.optimizer.step()
-
-            # Predict validation examples
-            if validationExamples:
-                val_predicted_pis, val_predicted_vs = self.model(val_boards)
-                loss_pi = -torch.sum(val_expected_pis * val_predicted_pis) / val_expected_pis.size()[0]
-                loss_v = torch.sum((val_expected_vs - val_predicted_vs.view(-1)) ** 2) / val_expected_vs.size()[0]
-                total_validation_loss = loss_pi + loss_v
-                self.validation_losses.append(total_validation_loss.item())
-                print("Validation Loss: {}".format(total_validation_loss.item()))
 
             self.epoch += 1
 

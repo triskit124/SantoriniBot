@@ -16,6 +16,7 @@ class MiniMaxAgent:
         self.alpha = -math.inf                      # max cutoff for min action
         self.beta = math.inf                        # min cutoff for max action
         self.player_number = player_number
+        self.pi = None
 
     def choose_starting_position(self, board):
         """
@@ -153,4 +154,8 @@ class MiniMaxAgent:
         num_players = game.num_players
 
         v, action = self.alphabeta(board_copy, num_players, positions_copy, self.alpha, self.beta, self.d, game.turn, game.turn_type)
+
+        all_actions = Util.get_all_actions(game.turn_type)
+        self.pi = [1 if action == a else 0 for a in all_actions]
+
         return action

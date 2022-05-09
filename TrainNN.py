@@ -20,10 +20,12 @@ class Coach:
         self.numIters = config.getint('Train', 'num_iters') # number of training iterations
         self.numEps = config.getint('Train', 'num_eps') # number of training episodes
         self.arenaEps = config.getint('Train', 'arena_eps')
+        self.num_validation_games = config.getint('Train', 'num_validation_games')
         self.folder = config['Train']['folder'] # directory to store training examples and model checkpoints
         self.updateThreshold = config.getfloat('Train', 'update_threshold') # win threshold above which to update neural network for agent during pit
-        self.player0 = Player(config, policy_type=config['Game']['agent_0'], player_number=0) # candidate
-        self.player1 = Player(config, policy_type=config['Game']['agent_1'], player_number=1) # opponent
+        self.player0 = Player(config, policy_type=config['Game']['agent_0'], player_number=0) # candidate NN agent
+        self.player1 = Player(config, policy_type=config['Game']['agent_1'], player_number=1) # opponent NN agent
+        self.validation_player = Player(config, policy_type=config['Train']['validation_agent'], player_number=1) # validation opponent with known policy
         self.save_plots = config.getboolean('Train', 'save_plots')
 
         # Load pre-existing materials if available
@@ -65,22 +67,15 @@ class Coach:
             self.iteration = 0
             print('Starting at iteration 0...')
 
-        validation_file = os.path.join(self.folder, 'validation_set.tar')
-        if os.path.exists(validation_file):
-            print('Using validation set...')
-            self.validationExamples = self.loadFromPickle(self.folder, 'validation_set.tar')
+        validation_win_rate_file = os.path.join(self.folder, 'validation_win_rates.tar')
+        if os.path.exists(validation_win_rate_file):
+            print('Using pre-existing validation win rate file...')
+            self.validation_win_rates = self.loadFromPickle(self.folder, 'validation_win_rates.tar')
         else:
-            self.validationExamples = []
+            print('Starting new validation win rate file...')
+            self.validation_win_rates = []
 
-        validation_losses_file = os.path.join(self.folder, 'validation_losses.tar')
-        if os.path.exists(validation_losses_file):
-            print('Using pre-existing validation losses file...')
-            self.validation_losses = self.loadFromPickle(self.folder, 'validation_losses.tar')
-        else:
-            print('Starting new validation losses file...')
-            self.validation_losses = []
-
-    def executeEpisode(self, num_episodes=1):
+    def executeEpisode(self, num_episodes=1, validation=False):
         """
         Executes a single game of self-play to conclusion. Two NNAgents are pitted against each other.
 
@@ -88,10 +83,14 @@ class Coach:
         """
         # reset MCTS trees before the agents start playing a new round of games
         self.player0.Agent.initialize_MCTS()
-        self.player1.Agent.initialize_MCTS()
 
         # play a game
-        players = [self.player0, self.player1]
+        if validation:
+            players = [self.player0, self.validation_player]
+        else:
+            self.player1.Agent.initialize_MCTS()
+            players = [self.player0, self.player1]
+
         return self_play(config, players, num_games=num_episodes)
 
     def train(self):
@@ -102,10 +101,11 @@ class Coach:
 
         # ITERATION
         for i in range(self.numIters):
-            print("\nTraining Iteration {}\n".format(self.iteration))
+            print("\nTraining Iteration {}".format(self.iteration))
 
             # EPISODE
-            summary = self.executeEpisode(num_episodes=self.numEps) # execute an episode
+            print("\nPlaying games to produce training examples...")
+            summary = self.executeEpisode(num_episodes=self.numEps, validation=True) #TODO execute episodes
             iterationTrainExamples = summary["trainExamples"]
 
             # save iteration examples to history
@@ -119,11 +119,11 @@ class Coach:
             self.player1.Agent.loadCheckpoint(folder=self.folder, file="tmp.pth.tar")
 
             # train the candidate agent
-            self.player0.Agent.train(copy.deepcopy(self.trainExamplesHistory), copy.deepcopy(self.validationExamples))
+            print("\nTraining with {} examples...".format(len(self.trainExamplesHistory)))
+            self.player0.Agent.train(copy.deepcopy(self.trainExamplesHistory))
 
             # append losses from most recent training to losses file
             self.all_losses.extend(self.player0.Agent.losses)
-            self.validation_losses.extend(self.player0.Agent.validation_losses)
 
             # plot losses to file
             if self.save_plots:
@@ -133,24 +133,37 @@ class Coach:
                 plt.plot(self.all_losses)
                 fig.savefig(self.folder + '/iteration {} losses.jpeg'.format(self.iteration), transparent=False, dpi=300, bbox_inches="tight")
 
-                fig = plt.figure()
-                plt.xlabel('epoch')
-                plt.ylabel('validation loss')
-                plt.plot(self.validation_losses)
-                fig.savefig(self.folder + '/iteration {} validation losses.jpeg'.format(self.iteration), transparent=False, dpi=300, bbox_inches="tight")
-
             # Pit the new player agent against old version
+            print("\nPitting new model against previous...")
             summary = self.executeEpisode(num_episodes=self.arenaEps)  # execute an episode
             wins, losses = summary[0]["wins"], summary[0]["losses"]
 
             # Accept or reject new model based on win percentage
             win_fraction = (wins / (wins + losses))
             print("Win percentage is {}%".format(100 * win_fraction))
+
             if win_fraction > self.updateThreshold:
                 # Accept the new model
                 print("Accepting new model...")
                 self.player0.Agent.saveCheckpoint(folder=self.folder, file="iteration_{}.pth.tar".format(self.iteration))
                 self.player0.Agent.saveCheckpoint(folder=self.folder, file="best.pth.tar")
+
+                # play games against validation opponent to test new model
+                print("\nPlaying games against validation opponent...")
+                summary = self.executeEpisode(num_episodes=self.num_validation_games, validation=True)
+                wins, losses = summary[0]["wins"], summary[0]["losses"]
+                win_fraction = (wins / (wins + losses))
+                self.validation_win_rates.append(win_fraction)
+                print("Win percentage against validation opponent is {}%".format(100 * win_fraction))
+
+                # plot validation win rate to file
+                if self.save_plots:
+                    fig = plt.figure()
+                    plt.xlabel('model version')
+                    plt.ylabel('win rate')
+                    plt.plot(self.validation_win_rates)
+                    fig.savefig(self.folder + '/iteration_{}_validation_win_rates.jpeg'.format(self.iteration), transparent=False, dpi=300, bbox_inches="tight")
+
             else:
                 print("Rejecting new model...")
                 self.player0.Agent.loadCheckpoint(folder=self.folder, file="tmp.pth.tar")
@@ -160,7 +173,7 @@ class Coach:
         # save all training materials to file
         self.saveToPickle(self.trainExamplesHistory, folder=self.folder, file="all_train_examples.tar")
         self.saveToPickle(self.all_losses, folder=self.folder, file="all_losses.tar")
-        self.saveToPickle(self.validation_losses, folder=self.folder, file="validation_losses.tar")
+        self.saveToPickle(self.validation_win_rates, folder=self.folder, file="validation_win_rates.tar")
         self.saveToPickle(self.iteration, folder=self.folder, file="last_iteration.tar")
         ConfigHandler.save_config(os.path.join(self.folder, 'config.ini'), self.config)
 
