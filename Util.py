@@ -230,3 +230,103 @@ def transition(board, player_positions, action, player_number):
         build_loc = move_logic(board, player_positions[player_number], action)
         new_board[build_loc[0]][build_loc[1]][1] = board[build_loc[0]][build_loc[1]][1] + 1
     return new_board, new_positions
+
+
+def getTrainingSymmetries(example):
+    """
+    Creates symmetrical training examples by rotating/flipping board, since Santorini is invariant to rotations/mirrors.
+    Will create 7 additional examples for each example
+
+    :param example: tuple of form (board, current_player, turn_type, pi (policy), victory)
+    :return: example_symmetries: list of tuples of form (board, current_player, turn_type, pi (policy), victory)
+    """
+    import copy
+    import numpy as np
+
+    example_symmetries = []
+    board = copy.deepcopy(example[0])
+    turn = example[1]
+    turn_type = example[2]
+    pi = copy.deepcopy(example[3])
+    v = example[4]
+
+    all_actions = get_all_actions(turn_type)
+    action = all_actions[np.argmax(pi)]
+
+    # map to rotate moves by 90 degrees CCW
+    rotation_map = {
+        'd': 'r',
+        'r': 'u',
+        'u': 'l',
+        'l': 'd',
+        'dr': 'ur',
+        'ur': 'ul',
+        'ul': 'dl',
+        'dl': 'dr',
+    }
+
+    # map to flip moves up/down
+    flip_ud_map = {
+        'd': 'u',
+        'r': 'r',
+        'u': 'd',
+        'l': 'l',
+        'dr': 'ur',
+        'ur': 'dr',
+        'ul': 'dl',
+        'dl': 'ul',
+    }
+
+    # map to flip moves left/right
+    flip_lr_map = {
+        'd': 'd',
+        'r': 'l',
+        'u': 'u',
+        'l': 'r',
+        'dr': 'dl',
+        'ur': 'ul',
+        'ul': 'ur',
+        'dl': 'dr',
+    }
+
+    # rotate the board by 90 degrees CCW 3 times
+    rotated_board = copy.deepcopy(board)
+    rotated_action = copy.deepcopy(action)
+    for i in range(3):
+        rotated_board = np.rot90(rotated_board)
+        rotated_action = (rotated_action[0], rotation_map[rotated_action[1]])
+        rotated_pi = [1 if rotated_action == a else 0 for a in all_actions]
+        example_symmetries.append((rotated_board.tolist(), turn, turn_type, rotated_pi, v))
+
+
+    # flip u/d then l/r
+    flipped_board = copy.deepcopy(board)
+    flipped_action = copy.deepcopy(action)
+
+    flipped_board = np.flipud(flipped_board)
+    flipped_action = (flipped_action[0], flip_ud_map[flipped_action[1]])
+    flipped_pi = [1 if flipped_action == a else 0 for a in all_actions]
+    example_symmetries.append((flipped_board.tolist(), turn, turn_type, flipped_pi, v))
+
+    flipped_board = np.fliplr(flipped_board)
+    flipped_action = (flipped_action[0], flip_lr_map[flipped_action[1]])
+    flipped_pi = [1 if flipped_action == a else 0 for a in all_actions]
+    example_symmetries.append((flipped_board.tolist(), turn, turn_type, flipped_pi, v))
+
+    # flip l/r then u/d
+    flipped_board = copy.deepcopy(board)
+    flipped_action = copy.deepcopy(action)
+
+    flipped_board = np.fliplr(flipped_board)
+    flipped_action = (flipped_action[0], flip_lr_map[flipped_action[1]])
+    flipped_pi = [1 if flipped_action == a else 0 for a in all_actions]
+    example_symmetries.append((flipped_board.tolist(), turn, turn_type, flipped_pi, v))
+
+    flipped_board = np.flipud(flipped_board)
+    flipped_action = (flipped_action[0], flip_ud_map[flipped_action[1]])
+    flipped_pi = [1 if flipped_action == a else 0 for a in all_actions]
+    example_symmetries.append((flipped_board.tolist(), turn, turn_type, flipped_pi, v))
+
+    return example_symmetries
+
+

@@ -232,7 +232,7 @@ def main():
     #run the program
     #player = Player(policy_type="HumanAgent", player_number=0)
     #opponent = Player(policy_type=args.agent, player_number=1)
-    players = [Player(policy_type=config['Game']['agent_{}'.format(i)], player_number=i) for i in range(config.getint('Game', 'num_players'))]
+    players = [Player(config, policy_type=config['Game']['agent_{}'.format(i)], player_number=i) for i in range(config.getint('Game', 'num_players'))]
 
     game = GameState(config=config)
     game.start_game(players)

@@ -1,4 +1,5 @@
 from Game import GameState, Player
+import Util
 import ConfigHandler
 import copy
 
@@ -33,6 +34,9 @@ def self_play(config, players, num_games=1):
                     example[3] = player.Agent.pi
                 game_train_examples.append(tuple(example))
 
+                train_symmetries = Util.getTrainingSymmetries(example)
+                game_train_examples.extend(train_symmetries)
+
                 if game.flag == 'game_over':
                     break
 
@@ -41,6 +45,9 @@ def self_play(config, players, num_games=1):
                 if player.policy_type == 'NN' or player.policy_type == 'MiniMax':
                     example[3] = player.Agent.pi
                 game_train_examples.append(tuple(example))
+
+                train_symmetries = Util.getTrainingSymmetries(example)
+                game_train_examples.extend(train_symmetries)
 
                 if game.flag == 'game_over':
                     break
