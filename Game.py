@@ -1,7 +1,13 @@
-import argparse
-import Util
-import ConfigHandler
+#! /usr/bin/env python3
 
+import os
+import Util
+from enum import Enum
+from dataclasses import dataclass
+from copy import copy
+from typing import Iterable, Optional
+
+from players.Player import Player
 from FS import FSAgent
 from Random import RandomAgent
 from MiniMax import MiniMaxAgent
@@ -9,32 +15,57 @@ from HumanPlayer import HumanAgent
 from NN import NNAgent
 
 
-class GameState:
-    """
-    Implements the state of the game. Keeps track of all state variables, including player positions and the game board.
-    """
-    def __init__(self, config):
+@dataclass
+class SantoriniBoardSpace:
+    player: Optional[Player] = None
+    height: int = 0
 
-        self.config = config
-        self.num_players = self.config.getint('Game', 'num_players')
-        self.board_size = self.config.getint('Game', 'board_size')
+class SantoriniActionType(Enum):
+    CHOOSE_STARTNG_POSITION = 1
+    MOVE = 2
+    BUILD = 3
+
+class SantoriniActionDirection(Enum):
+    UP = "u"
+    DOWN = "d"
+    LEFT = "l"
+    RIGHT = "r"
+    UP_LEFT = "ul"
+    DOWN_LEFT = "dl"
+    UP_RIGHT = "ur"
+    DOWN_RIGHT = "dr"
+
+@dataclass
+class SantoriniAction():
+    action_type: SantoriniActionType
+    direction: SantoriniActionDirection
+
+# Type aliases
+SantoriniBoard = list[list[SantoriniBoardSpace]]
+SantoriniBoardLocation = tuple[int, int, int]
+
+class SantoriniGame:
+    """
+    Implements the state of the game. 
+    Keeps track of all state variables, 
+    including player positions and the game board.
+    """
+
+    def __init__(self, players: list[Player], board_size: int = 5, verbose: bool = True):
 
         # players
-        self.players = set(range(self.num_players))
-        self.player_positions = [None for _ in range(self.num_players)]
-        self.winner = None
-        self.losers = set()
+        self.players = players # ordered list of players
+        self.player_positions: dict[Player, SantoriniBoardLocation] = {player: (0, 0, 0) for player in self.players}
+        self.winner: Optional[Player] = None
+        self.losers: set[Player] = set()
 
         # board
-        self.board = [[[None, 0] for i in range(self.board_size)] for j in range(self.board_size)]
+        self.board_size = board_size    
+        self.board: SantoriniBoard = [[SantoriniBoardSpace(None, 0) for _ in range(self.board_size)] for _ in range(self.board_size)]
 
-        # state
-        self.flag = None # flag to keep track of game over state
-        self.turn = None # [int] index that keeps track of whose turn it is
-        self.turn_type = None # [string] what type of turn, 'move' or 'build'
-        self.verbose = self.config.getboolean('Game', 'verbose') # print information to the console
+        self.verbose = verbose
 
-    def print_board(self):
+    def printBoard(self):
         """
         Helper function to print the current game board to the command line.
         """
@@ -57,30 +88,44 @@ class GameState:
         if self.verbose:
             for i in range(self.board_size):
                 for j in range(self.board_size):
-                    print(player_print_dict[self.board[i][j][0]], height_print_dict[self.board[i][j][1]], '  ', end='')
+                    space = self.board[i][j]
+                    print(f'{space.player.getPlayerPiece() if space.player else "  "} {height_print_dict[space.height]}  ', end='')
                 print('\n')
 
-    def start_game(self, players):
+    def play(self):
         """
-        Initializes the game.
+        Main game loop.
         """
+
         if self.verbose:
-            print("                                       \n \
-                           __       __        ___  __          __ \n \
-                          / /  ___ / /____   / _ \/ /__ ___ __/ / \n \
-                         / /__/ -_) __(_-<  / ___/ / _ `/ // /_/  \n \
-                        /____/\__/\__/___/ /_/  /_/\_,_/\_, (_)   \n \
-                                                       /___/     ")
-        self.turn_type = 'move' # start with move turn
-        self.turn = 0 # start with player 0
-        for player_number, player in enumerate(players):
-            position = player.choose_starting_position(self.board) # choose starting position
-            self.board[position[0]][position[1]][0] = player_number # update board
-            self.player_positions[player_number] = position # update internally stored position
+            print(r"""                                              
+                   __       __        ___  __          __ 
+                  / /  ___ / /____   / _ \/ /__ ___ __/ / 
+                 / /__/ -_) __(_-<  / ___/ / _ `/ // /_/  
+                /____/\__/\__/___/ /_/  /_/\_,_/\_, (_)   
+                                               /___/     
+            """)
 
-        self.print_board()
+        # choose starting positions
+        for player in self.players:
+            position = player.getAction(self, SantoriniActionType.CHOOSE_STARTNG_POSITION)
+            self.board[position[0]][position[1]][0] = player # update board
+            self.player_positions[player] = position # update internally stored position
+        
+        if self.verbose:
+            self.printBoard()
 
-    def move_on_board(self, old_position, new_position, player_number):
+        # game loop
+        while True:
+            for player in self.players:
+                self.moveOnBoard(player)
+                if self.checkForGameOver():
+                    break
+                self.buildOnBoard(player)
+                if self.checkForGameOver():
+                    break
+    
+    def moveOnBoard(self, player: Player):
         """
         Updates the game board to reflect a movement action.
 
@@ -88,169 +133,147 @@ class GameState:
         :param new_position: [3x1] list of [y,x,z] coordinates representing new position on board
         :param player_number: int associated with current player
         """
-        self.board[old_position[0]][old_position[1]][0] = None
-        self.board[new_position[0]][new_position[1]][0] = player_number
-        self.player_positions[player_number] = new_position # update internally stored position
-        self.print_board()
-        self.turn_type = 'build' # next turn type is build after a move
-        self.check_for_game_over()
+        if self.verbose:
+            print(f"\nPlayer {player.getPlayerNumber()} is moving...\n")
 
-    def build_on_board(self, build_position):
+        old_position = self.player_positions[player]
+        new_position = player.getAction(self, SantoriniActionType.MOVE)
+
+        self.board[old_position[0]][old_position[1]].player = None
+        self.board[new_position[0]][new_position[1]].player = player
+        self.player_positions[player] = new_position # update internally stored position
+
+        if self.verbose:
+            self.printBoard()
+
+    def buildOnBoard(self, player: Player):
         """
         Updates the game board to reflect a build action.
 
         :param build_position: [3x1] list of [y,x,z] coordinates representing the desired build location
         """
-        self.board[build_position[0]][build_position[1]][1] = self.board[build_position[0]][build_position[1]][1] + 1
-        self.print_board()
-        self.turn = (self.turn + 1) % self.num_players # switch to next player's turn after a build
-        self.turn_type = 'move' # next turn type is move after a build
-        self.check_for_game_over()
+        if self.verbose:
+            print(f"\nPlayer {player.getPlayerNumber()} is building...\n")
 
-    def check_for_game_over(self):
+        build_position = player.getAction(self, SantoriniActionType.BUILD)
+        self.board[build_position[0]][build_position[1]].height += 1
+        
+        if self.verbose:
+            self.printBoard()
+
+    def checkForGameOver(self) -> bool:
         """
         Checks positions of each player and determines if a game_over state has been reached. This could be due to a
         player reaching a height of 3, or a player running out of valid moves.
         """
 
-        for player_number, position in enumerate(self.player_positions):
-            if player_number not in self.losers:
+        for player in self.players:
+            if player not in self.losers:
                 # check if a player has reached a height of 3 (win condition)
+                position = self.player_positions[player]
                 if position[2] == 3:
-                    self.flag = 'game_over'
-                    self.winner = player_number
-                    self.losers = self.players - {self.winner}
-                    print("Player {} wins!".format(player_number))
-                    return
+                    self.winner = player
+                    self.losers = set(self.players) - {self.winner}
+                    print(f"Player {player.getPlayerNumber()} wins!")
+                    return True
                 # check if a player doesn't have any valid moves (that player loses)
                 if not Util.get_move_action_space(self.board, position) or \
                    not Util.get_build_action_space(self.board, position):
 
-                    self.losers.add(player_number)
-                    self.board[position[0]][position[1]][0] = None
-                    self.player_positions[player_number] = None
+                    self.players.remove(player)
+                    self.player_positions.pop(player)
+                    self.losers.add(player)
+                    self.board[position[0]][position[1]].player = None
 
                     # if every player but 1 has lost, game is now over
-                    if len(self.losers) == self.num_players - 1:
-                        self.flag = 'game_over'
-                        self.winner = (self.players - self.losers).pop() # use Set diff operation to find winner
-                        print("Player {} wins!".format(self.winner))
-                        return
+                    if len(self.players) == 1:
+                        self.winner = self.players[0]
+                        print(f"Player {self.winner.getPlayerNumber()} wins!")
+                        return True
                     else:
-                        print("Player {} loses!".format(player_number))
-        return
-
-
-class Player:
-    """
-    Implements an Opponent to play Santorini against. Uses one of the various Agent implementations such as FS or
-    MiniMax to generate moves.
-    """
-    def __init__(self, config, policy_type="Random", player_number=0):
-        self.policy_type = policy_type
-        self.player_number = player_number
-        print(policy_type)
-
-        # chose policy Agent
-        if policy_type == 'FS':
-            self.Agent = FSAgent(config, self.player_number)
-        elif policy_type == 'Random':
-            self.Agent = RandomAgent(config, self.player_number)
-        elif policy_type == 'MiniMax':
-            self.Agent = MiniMaxAgent(config, self.player_number)
-        elif policy_type == 'Human':
-            self.Agent = HumanAgent(config, self.player_number)
-        elif policy_type == "NN":
-            self.Agent = NNAgent(config, self.player_number)
-        else:
-            raise Exception("Invalid Agent selection '{}' for player {}!".format(policy_type, player_number))
-
-    def choose_starting_position(self, board):
+                        print(f"Player {player.getPlayerNumber()} loses!")
+        return False
+    
+    @staticmethod
+    def getPositionFromDirection(board: SantoriniBoard, pos: SantoriniBoardLocation, dir: SantoriniActionDirection) -> SantoriniBoardLocation:
         """
-        Function to choose a starting position on the board. Is called once during Game.start_game().
-        This is a wrapper function for an Agent's specific choose_starting_positon() member function
+        Handles transitioning a position to a new position based on an action.
 
         :param board: GameState representation of the current game board. See class GameState
-        :return: starting_position: a [3x1] List of [x, y, z] coordinates representing starting position
-        """
-        return self.Agent.choose_starting_position(board)
-
-    def move(self, game):
-        """
-        Execute a move turn for opponent. Chooses action generated by the policy Agent.
-        :param game: GameState representation of the current game board. See class GameState
+        :param position: [3x1] list of [y,x,z] coordinates
+        :param action: tuple of ('action', 'dir') where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
+        :return: new_pos: deep-copied new position after action
         """
 
-        if game.verbose:
-            print("\nPlayer {} is moving...\n".format(self.player_number))
+        if dir == SantoriniActionDirection.UP:
+            x = pos[0] - 1
+            y = pos[1]
+        elif dir == SantoriniActionDirection.DOWN:
+            x = pos[0] + 1
+            y = pos[1]
+        elif dir == SantoriniActionDirection.RIGHT:
+            x = pos[0]
+            y = pos[1] + 1
+        elif dir == SantoriniActionDirection.LEFT:
+            x = pos[0]
+            y = pos[1] - 1
+        elif dir == SantoriniActionDirection.UP_RIGHT:
+            x = pos[0] - 1
+            y = pos[1] + 1
+        elif dir == SantoriniActionDirection.DOWN_RIGHT:
+            x = pos[0] + 1
+            y = pos[1] + 1
+        elif dir == SantoriniActionDirection.UP_LEFT:
+            x = pos[0] - 1
+            y = pos[1] - 1
+        elif dir == SantoriniActionDirection.DOWN_LEFT:
+            x = pos[0] + 1
+            y = pos[1] - 1
 
-        old_position = game.player_positions[self.player_number].copy()
-        action = self.Agent.getAction(game) # get action from Agent
-        new_position = Util.move_logic(game.board, old_position, action)
-        game.move_on_board(old_position, new_position, self.player_number)
+        if not 0 <= x < len(board[:][0]) or not 0 <= y < len(board[0][:]):
+            raise ValueError(f"Requested invalid board position: {x}, {y}")
 
-        if game.verbose:
-            print('\n')
+        z = board[x][y].height
 
-    def build(self, game):
+        return (x, y, z)
+
+    @staticmethod
+    def isValidMove(board: SantoriniBoard, start_pos: SantoriniBoardLocation, end_pos: SantoriniBoardLocation) -> bool:
         """
-        Execute a build turn for opponent. Chooses action generated by the policy Agent.
-        :param game: GameState representation of the current game board. See class GameState
+
         """
+        if end_pos[0] < 0 or end_pos[0] >= len(board[:][0]) or end_pos[1] < 0 or end_pos[1] >= len(board[0][:]):
+            return False
+        if board[end_pos[0]][end_pos[1]].player is None \
+                and board[end_pos[0]][end_pos[1]].height <= start_pos[2] + 1 \
+                and end_pos[0] >= 0 and end_pos[1] >= 0 and board[end_pos[0]][end_pos[1]].height <= 3:
+            return True
+        return False
+    
+    @staticmethod
+    def isValidBoard(board: SantoriniBoard, build_pos: SantoriniBoardLocation) -> bool:
+        """
+        """
+        if build_pos[0] < 0 or build_pos[0] >= len(board[:][0]) or build_pos[1] < 0 or build_pos[1] >= len(board[0][:]):
+            return False
+        if build_pos[0] >= 0 and build_pos[1] >= 0 and board[build_pos[0]][build_pos[1]].height <= 3 \
+                and board[build_pos[0]][build_pos[1]].player is None:
+            return True
+        return False
 
-        if game.verbose:
-            print("\nPlayer {} is building...\n".format(self.player_number))
+    @staticmethod
+    def getValidMoves(board: SantoriniBoard, position: SantoriniBoardLocation) -> list[SantoriniAction]:
+        """
+        Enumerates list of all valid move actions from current state
 
-        position = game.player_positions[self.player_number].copy()
-        action = self.Agent.getAction(game)
-        build_location = Util.move_logic(game.board, position, action)
-        game.build_on_board(build_location)
+        :param board: GameState representation of the current game board. See class GameState
+        :param position: [3x1] list of [y,x,z] coordinates representing current position
+        :return: action_list: list of valid actions, where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
+        """
+        action_list = []
 
-        if game.verbose:
-            print('\n')
-
-
-def main():
-    """
-    Runs a game of Santorini with an AI adversary.
-    """
-    # parse command-line inputs (these will override config.ini settings)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--agent", type=str, help="Choose an opponent AI to play against", choices=['Random', 'FS', 'MiniMax'])
-    parser.add_argument("--board_size", type=int, help="Board size", choices=[3, 4, 5])
-    args = parser.parse_args()
-
-    # load in config file
-    config = ConfigHandler.read_config('config/simple.ini')
-
-    # override config settings with command line args
-    if args.board_size is not None:
-        config['Game']['board_size'] = str(args.board_size)
-    if args.agent is not None:
-        config['Game']['agent_1'] = str(args.agent)
-
-    #run the program
-    #player = Player(policy_type="HumanAgent", player_number=0)
-    #opponent = Player(policy_type=args.agent, player_number=1)
-    players = [Player(config, policy_type=config['Game']['agent_{}'.format(i)], player_number=i) for i in range(config.getint('Game', 'num_players'))]
-
-    game = GameState(config=config)
-    game.start_game(players)
-
-    # main game loop
-    while game.flag != 'game_over':
-        for player in players:
-            if player.player_number not in game.losers:
-                player.move(game)
-
-                if game.flag == 'game_over':
-                    break
-
-                player.build(game)
-
-                if game.flag == 'game_over':
-                    break
-
-
-if __name__ == '__main__':
-    main()
+        for dir in SantoriniActionDirection: # TODO: does this work?
+            new_pos = SantoriniGame.getPositionFromDirection(board, position, dir)
+            if SantoriniGame.isValidMove(board, position, new_pos):
+                action_list.append(action)
+        return action_list

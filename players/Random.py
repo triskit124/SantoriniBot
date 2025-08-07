@@ -1,18 +1,15 @@
-import Util
+from Player import Player
 import random
 import time
 
 
-class RandomAgent:
+class RandomPlayer(Player):
     """
     Implements a Random agent to play Santorini. Nothing fancy here; the agent just lists all valid moves and chooses
     one randomly.
     """
 
-    def __init__(self, config, player_number):
-        self.player_number = player_number
-
-    def choose_starting_position(self, board):
+    def chooseStartingPosition(self, board):
         """
         Function to choose a starting position on the board. Is called once during Game.start_game()
 
@@ -23,7 +20,7 @@ class RandomAgent:
         position = random.choice(avail)
         return [position[0], position[1], 0]
 
-    def getAction(self, game):
+    def getAction(self, game, action_type):
         """
         Selects a random action from a list of all valid actions
 
@@ -31,16 +28,9 @@ class RandomAgent:
         :return: a random action
         """
 
-        position = game.player_positions[self.player_number].copy()
-
         time.sleep(1.5) # pause for a bit so we can see what's happening
 
-        if game.turn_type == 'move':
-            #move
-            actions = Util.get_move_action_space(game.board, position)
-        else:
-            # build
-            actions = Util.get_build_action_space(game.board, position)
+        actions = game.getAvailableActions()
 
         if actions:
             action = random.choice(actions)

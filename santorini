@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+import os
+import click
+from configparser import ConfigParser
+
+AGENT_CHOICES = [
+    "human", 
+    "random", 
+    "fs", 
+    "mini_max",
+]
+
+def configure(ctx, param, filename):
+    cfg = ConfigParser()
+    cfg.read(filename)
+    ctx.default_map = {}
+    for sect in cfg.sections():
+        defaults = ctx.default_map
+        for cmdname in sect.split('.'):
+            defaults = defaults.setdefault(cmdname, {})
+        defaults.update(cfg[sect])
+
+@click.group()
+@click.option('-c', '--config', required=False, is_eager=True, callback=configure, type=click.Path(exists=True, dir_okay=False))
+@click.pass_context
+def cli(ctx, *args, **kwargs):
+    pass
+
+@cli.command()
+@click.pass_context
+@click.option('-v', '--verbose', default=True)
+@click.option('-b', '--board-size', default=4, type=click.IntRange(min=3, max=5))
+@click.option('-p', '--player', default="human", type=click.Choice(AGENT_CHOICES))
+@click.option('-o', '--opponent', default=["mini_max"], type=click.Choice(AGENT_CHOICES), multiple=True)
+def play(ctx, *args, **kwargs):
+    breakpoint()
+
+    # game = SantoriniGame(players)
+    # game.play()
+
+if __name__ == "__main__":
+    cli()
