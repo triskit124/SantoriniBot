@@ -1,48 +1,31 @@
 #! /usr/bin/env python3
 
-import os
-import Util
-from enum import Enum
-from dataclasses import dataclass
-from copy import copy
-from typing import Iterable, Optional
 
-from players.Player import Player
-from FS import FSAgent
-from Random import RandomAgent
-from MiniMax import MiniMaxAgent
-from HumanPlayer import HumanAgent
-from NN import NNAgent
+from dataclasses import dataclass
+from typing import Optional, Literal, TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from agents.Player import Player
 
 
 @dataclass
-class SantoriniBoardSpace:
-    player: Optional[Player] = None
+class BoardSpace:
+    player: Optional["Player"] = None
     height: int = 0
 
-class SantoriniActionType(Enum):
-    CHOOSE_STARTNG_POSITION = 1
-    MOVE = 2
-    BUILD = 3
-
-class SantoriniActionDirection(Enum):
-    UP = "u"
-    DOWN = "d"
-    LEFT = "l"
-    RIGHT = "r"
-    UP_LEFT = "ul"
-    DOWN_LEFT = "dl"
-    UP_RIGHT = "ur"
-    DOWN_RIGHT = "dr"
+# Type aliases
+ActionType = Literal["CHOOSE_STARTNG_POSITION", "MOVE", "BUILD"]
+Board = list[list[BoardSpace]]
+BoardLocation = tuple[int, int, int]
+PlayerPositions = dict["Player", BoardLocation]
 
 @dataclass
-class SantoriniAction():
-    action_type: SantoriniActionType
-    direction: SantoriniActionDirection
+class Action():
+    player: "Player"
+    action_type: ActionType
+    location: BoardLocation
 
-# Type aliases
-SantoriniBoard = list[list[SantoriniBoardSpace]]
-SantoriniBoardLocation = tuple[int, int, int]
 
 class SantoriniGame:
     """
@@ -51,17 +34,17 @@ class SantoriniGame:
     including player positions and the game board.
     """
 
-    def __init__(self, players: list[Player], board_size: int = 5, verbose: bool = True):
+    def __init__(self, players: list["Player"], board_size: int = 5, verbose: bool = True):
 
         # players
         self.players = players # ordered list of players
-        self.player_positions: dict[Player, SantoriniBoardLocation] = {player: (0, 0, 0) for player in self.players}
-        self.winner: Optional[Player] = None
-        self.losers: set[Player] = set()
-
+        self.player_positions: PlayerPositions = {player: (0, 0, 0) for player in self.players}
+        self.winner: Optional["Player"] = None
+        self.losers: set["Player"] = set()
+        
         # board
         self.board_size = board_size    
-        self.board: SantoriniBoard = [[SantoriniBoardSpace(None, 0) for _ in range(self.board_size)] for _ in range(self.board_size)]
+        self.board: Board = [[BoardSpace(None, 0) for _ in range(self.board_size)] for _ in range(self.board_size)]
 
         self.verbose = verbose
 
@@ -69,14 +52,7 @@ class SantoriniGame:
         """
         Helper function to print the current game board to the command line.
         """
-        # maps player numbers to emojis
-        player_print_dict = {
-            None: "  ",
-            0: "\U0001F477",
-            1: "\U0001F916",
-            2: "\U0001F916",
-            3: "\U0001F916"
-        }
+
         # maps square height to emojis
         height_print_dict = {
             0: "\N{white large square} ",
@@ -108,172 +84,76 @@ class SantoriniGame:
 
         # choose starting positions
         for player in self.players:
-            position = player.getAction(self, SantoriniActionType.CHOOSE_STARTNG_POSITION)
-            self.board[position[0]][position[1]][0] = player # update board
-            self.player_positions[player] = position # update internally stored position
-        
-        if self.verbose:
-            self.printBoard()
+            self.applyAction(player.getAction(self, "CHOOSE_STARTNG_POSITION"))
 
         # game loop
-        while True:
+        while not self.isGameOver():
             for player in self.players:
-                self.moveOnBoard(player)
-                if self.checkForGameOver():
-                    break
-                self.buildOnBoard(player)
-                if self.checkForGameOver():
-                    break
+                player.playTurn(self)
     
-    def moveOnBoard(self, player: Player):
+    def applyAction(self, action: Action):
         """
-        Updates the game board to reflect a movement action.
-
-        :param old_position: [3x1] list of [y,x,z] coordinates representing old position on board
-        :param new_position: [3x1] list of [y,x,z] coordinates representing new position on board
-        :param player_number: int associated with current player
+        Applies a given action to the game board.
+        Checks for new winners or losers after the action gets applied.
         """
-        if self.verbose:
-            print(f"\nPlayer {player.getPlayerNumber()} is moving...\n")
-
-        old_position = self.player_positions[player]
-        new_position = player.getAction(self, SantoriniActionType.MOVE)
-
-        self.board[old_position[0]][old_position[1]].player = None
-        self.board[new_position[0]][new_position[1]].player = player
-        self.player_positions[player] = new_position # update internally stored position
-
-        if self.verbose:
-            self.printBoard()
-
-    def buildOnBoard(self, player: Player):
-        """
-        Updates the game board to reflect a build action.
-
-        :param build_position: [3x1] list of [y,x,z] coordinates representing the desired build location
-        """
-        if self.verbose:
-            print(f"\nPlayer {player.getPlayerNumber()} is building...\n")
-
-        build_position = player.getAction(self, SantoriniActionType.BUILD)
-        self.board[build_position[0]][build_position[1]].height += 1
+        self.board, self.player_positions = SantoriniGame.getBoardAfterAction(self.board, self.player_positions, action)
         
         if self.verbose:
             self.printBoard()
 
-    def checkForGameOver(self) -> bool:
+        self._checkForWinnersOrLosers()
+
+    def isGameOver(self) -> bool:
         """
-        Checks positions of each player and determines if a game_over state has been reached. This could be due to a
-        player reaching a height of 3, or a player running out of valid moves.
+        Returns whether or not the game is over.
         """
-
-        for player in self.players:
-            if player not in self.losers:
-                # check if a player has reached a height of 3 (win condition)
-                position = self.player_positions[player]
-                if position[2] == 3:
-                    self.winner = player
-                    self.losers = set(self.players) - {self.winner}
-                    print(f"Player {player.getPlayerNumber()} wins!")
-                    return True
-                # check if a player doesn't have any valid moves (that player loses)
-                if not Util.get_move_action_space(self.board, position) or \
-                   not Util.get_build_action_space(self.board, position):
-
-                    self.players.remove(player)
-                    self.player_positions.pop(player)
-                    self.losers.add(player)
-                    self.board[position[0]][position[1]].player = None
-
-                    # if every player but 1 has lost, game is now over
-                    if len(self.players) == 1:
-                        self.winner = self.players[0]
-                        print(f"Player {self.winner.getPlayerNumber()} wins!")
-                        return True
-                    else:
-                        print(f"Player {player.getPlayerNumber()} loses!")
-        return False
+        # I don't think there are ties in Santorini, so this seems like a sufficient check
+        return self.winner is not None
     
-    @staticmethod
-    def getPositionFromDirection(board: SantoriniBoard, pos: SantoriniBoardLocation, dir: SantoriniActionDirection) -> SantoriniBoardLocation:
+    def _checkForWinnersOrLosers(self):
         """
-        Handles transitioning a position to a new position based on an action.
-
-        :param board: GameState representation of the current game board. See class GameState
-        :param position: [3x1] list of [y,x,z] coordinates
-        :param action: tuple of ('action', 'dir') where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
-        :return: new_pos: deep-copied new position after action
+        Checks for new winners or losers given the current state of the game.
         """
-
-        if dir == SantoriniActionDirection.UP:
-            x = pos[0] - 1
-            y = pos[1]
-        elif dir == SantoriniActionDirection.DOWN:
-            x = pos[0] + 1
-            y = pos[1]
-        elif dir == SantoriniActionDirection.RIGHT:
-            x = pos[0]
-            y = pos[1] + 1
-        elif dir == SantoriniActionDirection.LEFT:
-            x = pos[0]
-            y = pos[1] - 1
-        elif dir == SantoriniActionDirection.UP_RIGHT:
-            x = pos[0] - 1
-            y = pos[1] + 1
-        elif dir == SantoriniActionDirection.DOWN_RIGHT:
-            x = pos[0] + 1
-            y = pos[1] + 1
-        elif dir == SantoriniActionDirection.UP_LEFT:
-            x = pos[0] - 1
-            y = pos[1] - 1
-        elif dir == SantoriniActionDirection.DOWN_LEFT:
-            x = pos[0] + 1
-            y = pos[1] - 1
-
-        if not 0 <= x < len(board[:][0]) or not 0 <= y < len(board[0][:]):
-            raise ValueError(f"Requested invalid board position: {x}, {y}")
-
-        z = board[x][y].height
-
-        return (x, y, z)
+        for player, position in self.player_positions.items():
+            if player.isWinner(self.board, position):
+                self.winner = player
+                self.losers = set(self.players) - set([self.winner])
+                print(f"player {self.winner.getPlayerNumber()} wins!")
+                return
+            
+            if player.isLoser(self.board, position):
+                self.losers.add(player)
+                self.board[position[0]][position[1]].player = None
+                print(f"player {player.getPlayerNumber()} loses!")
+            
+            remaining_players = set(self.players) - self.losers
+            if len(remaining_players) == 1:
+                self.winner = remaining_players.pop()
+                print(f"player {self.winner.getPlayerNumber()} wins!")
 
     @staticmethod
-    def isValidMove(board: SantoriniBoard, start_pos: SantoriniBoardLocation, end_pos: SantoriniBoardLocation) -> bool:
+    def getBoardAfterAction(board: Board, player_positions: PlayerPositions, action: Action) -> tuple[Board, PlayerPositions]:
+        """
+        Simulates applying an action to a game board. 
+        Does not actually apply changes to the active game board.
+        Instead, returns copies of the resulting board and player positions.
+        Useful for agents that need to roll out actions without affecting the active game state.
         """
 
-        """
-        if end_pos[0] < 0 or end_pos[0] >= len(board[:][0]) or end_pos[1] < 0 or end_pos[1] >= len(board[0][:]):
-            return False
-        if board[end_pos[0]][end_pos[1]].player is None \
-                and board[end_pos[0]][end_pos[1]].height <= start_pos[2] + 1 \
-                and end_pos[0] >= 0 and end_pos[1] >= 0 and board[end_pos[0]][end_pos[1]].height <= 3:
-            return True
-        return False
-    
-    @staticmethod
-    def isValidBoard(board: SantoriniBoard, build_pos: SantoriniBoardLocation) -> bool:
-        """
-        """
-        if build_pos[0] < 0 or build_pos[0] >= len(board[:][0]) or build_pos[1] < 0 or build_pos[1] >= len(board[0][:]):
-            return False
-        if build_pos[0] >= 0 and build_pos[1] >= 0 and board[build_pos[0]][build_pos[1]].height <= 3 \
-                and board[build_pos[0]][build_pos[1]].player is None:
-            return True
-        return False
+        from copy import copy
 
-    @staticmethod
-    def getValidMoves(board: SantoriniBoard, position: SantoriniBoardLocation) -> list[SantoriniAction]:
-        """
-        Enumerates list of all valid move actions from current state
+        # shallow copy to avoid copying player objects
+        # agents may have state that we don't want to duplicate
+        new_positions = copy(player_positions)
+        new_board = [copy(col) for col in board[:]]
 
-        :param board: GameState representation of the current game board. See class GameState
-        :param position: [3x1] list of [y,x,z] coordinates representing current position
-        :return: action_list: list of valid actions, where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
-        """
-        action_list = []
-
-        for dir in SantoriniActionDirection: # TODO: does this work?
-            new_pos = SantoriniGame.getPositionFromDirection(board, position, dir)
-            if SantoriniGame.isValidMove(board, position, new_pos):
-                action_list.append(action)
-        return action_list
+        if action.action_type == "CHOOSE_STARTNG_POSITION" or action.action_type == "MOVE" :
+            old_position = player_positions[action.player]
+            new_board[old_position[0]][old_position[1]].player = None
+            new_board[action.location[0]][action.location[1]].player = action.player
+            new_positions[action.player] = action.location
+        elif action.action_type == "BUILD":
+            new_board[action.location[0]][action.location[1]].height += 1
+        else:
+            raise NotImplementedError(action.action_type)
+        return new_board, new_positions

@@ -7,7 +7,8 @@ from torch import nn
 import torch.nn.functional as F
 
 import copy
-import Util
+
+from .Player import Agent
 
 
 class SantoriniNN(nn.Module):
@@ -69,7 +70,7 @@ class SantoriniNN(nn.Module):
         return F.log_softmax(pi, dim=1), torch.tanh(v)
 
 
-class NNAgent:
+class NNAgent(Agent):
     """
     Implements a Neural Network agent to play Santorini. A CNN is used as a board evaluation function. Policies are
     created using Monte Carlo Tree Search (MCTS). The NN can be trained through self-play in TrainNN.py
