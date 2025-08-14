@@ -31,31 +31,20 @@ class HumanAgent(Agent):
                 starting_row = int(input("Please place Builder (row): "))
                 starting_col = int(input("Please place Builder (col): "))
                 action = Action(player, "CHOOSE_STARTNG_POSITION", (starting_row, starting_col, 0))
-                if action in player.getAllValidStartingActions(game.board):
+                if action in player.getValidActions(game.board, game.player_positions[player], action_type):
                     break
                 print("Not a valid placement, try again\n")
             print("\n")
-        elif action_type == "MOVE":
+        elif action_type in {"MOVE", "BUILD"}:
             while True:
-                valid_actions = player.getAllValidMoveActions(game.board, game.player_positions[player])
+                valid_actions = player.getValidActions(game.board, game.player_positions[player], action_type)
                 choices = {HumanAgent.getActionDirectionFromPosition(game.player_positions[player], action.location): action for action in valid_actions}
-                choice = input(f"Select a move: {list(choices.keys())}:   ")
+                choice = input(f"Select a {action_type.lower()}: {list(choices.keys())}:   ")
                 print("\n")
                 if choice in choices:
                     action = choices[choice]
                     break
-                print("Not a valid move!")
-
-        elif action_type == "BUILD":
-            while True:
-                valid_actions = player.getAllValidBuildActions(game.board, game.player_positions[player])
-                choices = {HumanAgent.getActionDirectionFromPosition(game.player_positions[player], action.location): action for action in valid_actions}
-                choice = input(f"Select a build: {list(choices.keys())}:   ")
-                print("\n")
-                if choice in choices:
-                    action = choices[choice]
-                    break
-                print("Not a valid move!")
+                print(f"Not a valid {action_type.lower()}!")
         else:
             raise NotImplementedError(action_type)
         return action

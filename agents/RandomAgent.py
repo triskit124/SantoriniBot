@@ -21,14 +21,7 @@ class RandomAgent(Agent):
 
         time.sleep(1.0) # pause for a bit so we can see what's happening
 
-        if action_type == "CHOOSE_STARTNG_POSITION":
-            actions = player.getAllValidStartingActions(game.board)
-        elif action_type == "MOVE":
-            actions = player.getAllValidMoveActions(game.board, game.player_positions[player])
-        elif action_type == "BUILD":
-            actions = player.getAllValidBuildActions(game.board, game.player_positions[player])
-        else:
-            raise NotImplementedError(action_type)
+        actions = player.getValidActions(game.board, game.player_positions[player], action_type)
 
         return random.choice(actions)
 
