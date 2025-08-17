@@ -1,161 +1,97 @@
-import copy
-import math
-import Util
 import random
+from math import inf
+from typing import Optional
+
+from Game import SantoriniGame, Board, ActionType, Action, PlayerPositions
+from .Player import Player, Agent
 
 
-class MiniMaxAgent:
+class MiniMaxAgent(Agent):
     """
     Implements a Mini-Max agent to play Santorini. Moves are given by calling self.getAction().
-    Implements alpha-beta pruning. Leaf nodes are evaluated using a heuristic evaluation function in
-    self.evaluation_function().
+    Implements alpha-beta pruning.
     """
 
-    def __init__(self, config, player_number):
-        self.d = config.getint('MiniMax', 'd')      # solve depth
-        self.alpha = -math.inf                      # max cutoff for min action
-        self.beta = math.inf                        # min cutoff for max action
-        self.player_number = player_number
-        self.pi = None
+    def __init__(self, d_solve: int = 9):
+        self._d_solve = d_solve
 
-    def choose_starting_position(self, board):
+    def evaluationFunction(self, board: Board, player_positions: PlayerPositions, player: Player) -> float:
         """
-        Function to choose a starting position on the board. Is called once during Game.start_game()
-
-        :param board: GameState representation of the current game board. See class GameState
-        :return: starting_position: a [3x1] List of [x, y, z] coordinates representing starting position
+        Function to evaluate the value of a board based on heuristics ("expert" knowledge)
         """
-        avail = [[row, col] for row in range(len(board[0])) for col in range(len(board[:][0])) if board[row][col][0] is None]
-        position = random.choice(avail)
-        return [position[0], position[1], 0]
+        player_idx = 1 if player.getAgent() is self else -1
+        current_position = player_positions[player]
 
-    def transition(self, board, player_positions, action, player_number):
-        """
-        Function to deterministically transition from current state to next state based on the action. Returns
-        deep-copies of board and position.
+        return player_idx * current_position[2] * 10
 
-        :param board: GameState representation of the current game board. See class GameState
-        :param player_positions: list of [y,x,z] coordinates of each Player
-        :param action: tuple of ('action', 'dir') where 'action' = {'move', 'build'} and 'dir' can be 'u', 'd', etc...
-        :param player_number: int representing index of Player taking the action
-        :return: new_board: deep-copied board for next state
-        :return: new_position: copied position for next state
-        """
-        new_board = copy.deepcopy(board)
-        new_positions = copy.deepcopy(player_positions)
-
-        if action[0] == 'move':
-            old_position = player_positions[player_number]
-            new_position = Util.move_logic(board, old_position, action)
-
-            new_positions[player_number] = new_position
-            new_board[old_position[0]][old_position[1]][0] = None
-            new_board[new_position[0]][new_position[1]][0] = player_number
-        else:
-            build_loc = Util.move_logic(board, player_positions[player_number], action)
-            new_board[build_loc[0]][build_loc[1]][1] = board[build_loc[0]][build_loc[1]][1] + 1
-        return new_board, new_positions
-
-    def evaluation_function(self, board, player_positions):
-        """
-        DEPRECATED. Function to evaluate the value of a board based on heuristics ("expert" knowledge)
-        """
-
-        return 0 # Turning off heuristic score
-
-    def alphabeta(self, board, num_players, player_positions, alpha, beta, d_solve, agent, action_type):
+    def alphaBeta(self, board: Board, player_positions: PlayerPositions, alpha: float, beta: float, d_solve: int, player: Player, action_type: ActionType) -> tuple[float, Optional[Action]]:
         """
         Implementation of mini-max search with alpha-beta pruning.
 
-        :param board: GameState representation of the current game board. See class GameState
-        :param num_players: int representing number of Players in game
-        :param player_positions: list of [y,x,z] coordinates for each Player
-        :param alpha: upper-bound cutoff for min ply
-        :param beta:  lower-bound cutoff for max ply
-        :param d_solve: solve depth
-        :param agent: int representing who's turn it is (zero indexed)
-        :param action_type: string representing what type of turn it is, action_type = {'move' or 'build'}
-        :return: value: value of the root node after minimax search
-        :return: action: greedy action corresponding to best value at root-node
         """
+        player_idx = 1 if player.getAgent() is self else -1
 
         # end states
-        if player_positions[agent][2] == 3:
-            if agent == self.player_number:
-                return math.inf, None # this agent has won
-            else:
-                return -math.inf, None  # another player has won
+        if player.isWinner(board, player_positions[player]):
+            return player_idx * inf, None
+
+        if player.isLoser(board, player_positions[player]):
+            return player_idx * -inf, None
 
         if d_solve == 0:
-            return self.evaluation_function(board, player_positions), None # return heuristic
+            return self.evaluationFunction(board, player_positions, player), None # return heuristic
+        
+        # non-end state
+        actions = player.getValidActions(board, player_positions[player], action_type)
+        next_player = player.getNextPlayer(list(player_positions.keys()), action_type)
+        next_action_type = player.getNextActionType(list(player_positions.keys()), action_type)
 
-        # minimizing agent
-        if agent != self.player_number:
-            value = math.inf
-            values = []
-            if action_type == 'move':
-                actions = Util.get_move_action_space(board, player_positions[agent])
-                random.shuffle(actions)
-                next_agent = agent
-                next_action = 'build'
-            else:
-                actions = Util.get_build_action_space(board, player_positions[agent])
-                random.shuffle(actions)
-                next_agent = (agent + 1) % num_players
-                next_action = 'move'
-            if not actions:
-                return self.evaluation_function(board, player_positions), None
-            for action in actions:
-                new_board, new_positions = self.transition(board, player_positions, action, agent)
-                value = min(value, self.alphabeta(new_board, num_players, new_positions, alpha, beta, d_solve - 1, next_agent, next_action)[0])
-                values.append(value)
+        random.shuffle(actions)
+        value = player_idx * -inf
+        values = []
+
+        for action in actions:
+            new_board, new_positions = SantoriniGame.getBoardAfterAction(board, player_positions, action)
+
+            # minimizing agent
+            if player.getAgent() is not self:
+                new_value = self.alphaBeta(new_board, new_positions, alpha, beta, d_solve - 1, next_player, next_action_type)[0]
+                values.append(new_value)
+                value = min(value, new_value)
                 if value <= alpha:
                     break
                 beta = min(beta, value)
-            return value, actions[values.index(value)]
-
-        # maximizing agent
-        else:
-            value = -math.inf
-            values = []
-            if action_type == 'move':
-                actions = Util.get_move_action_space(board, player_positions[agent])
-                random.shuffle(actions)
-                next_agent = agent
-                next_action = 'build'
+            
+            # maximizing agent
             else:
-                actions = Util.get_build_action_space(board, player_positions[agent])
-                random.shuffle(actions)
-                next_agent = (agent + 1) % num_players
-                next_action = 'move'
-            if not actions:
-                return self.evaluation_function(board, player_positions), None
-            for action in actions:
-                new_board, new_positions = self.transition(board, player_positions, action, agent)
-                value = max(value, self.alphabeta(new_board, num_players, new_positions, alpha, beta, d_solve - 1, next_agent, next_action)[0])
-                values.append(value)
+                new_value = self.alphaBeta(new_board, new_positions, alpha, beta, d_solve - 1, next_player, next_action_type)[0]
+                values.append(new_value)
+                value = max(value, new_value)
                 if value >= beta:
                     break
                 alpha = max(alpha, value)
-            #if d_solve == self.d:
-                #print(actions, values)
-            return value, actions[values.index(value)]
+        
+        selected_action = actions[values.index(value)]
 
-    def getAction(self, game):
+        if d_solve == self._d_solve:
+            print(f"{'Maximizing player' if player_idx == 1 else "Minimizing player"}, Solve depth {d_solve}")
+            print(f"Selected action: {selected_action}, value: {value}, no. of pruned actions: {len(actions) - len(values)}, alpha: {alpha}, beta: {beta}")
+            print("All actions:")
+            for i, action in enumerate(actions):
+                if i < len(values):
+                    print(f"\tAction: {action}, value: {values[i]}")
+                else:
+                    print(f"\tAction: {action}, value: PRUNED")
+        
+        return value, selected_action
+
+
+    def getAction(self, game: SantoriniGame, player: Player, action_type: ActionType) -> Action:
         """
-        Gets best action based on minimax search with alpha-beta pruning. Essentially a wrapper function for alphabeta()
-
-        :param game: GameState representation of the current game board. See class GameState
-        :return: action: greedy action corresponding to best value at root-node
         """
+        if action_type == "CHOOSE_STARTNG_POSITION":
+            return random.choice(player.getValidActions(game.board, game.player_positions[player], action_type))
 
-        board_copy = copy.deepcopy(game.board)
-        positions_copy = copy.deepcopy(game.player_positions)
-        num_players = game.num_players
-
-        v, action = self.alphabeta(board_copy, num_players, positions_copy, self.alpha, self.beta, self.d, game.turn, game.turn_type)
-
-        all_actions = Util.get_all_actions(game.turn_type)
-        self.pi = [1 if action == a else 0 for a in all_actions]
-
+        value, action = self.alphaBeta(game.board, game.player_positions, -inf, inf, self._d_solve, player, action_type)
+        assert action
         return action

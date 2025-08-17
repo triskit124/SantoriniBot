@@ -23,8 +23,10 @@ PlayerPositions = dict["Player", BoardLocation]
 @dataclass
 class Action():
     player: "Player"
+    player_location: BoardLocation
     action_type: ActionType
-    location: BoardLocation
+    action_direction: str
+    action_location: BoardLocation
 
 
 class SantoriniGame:
@@ -55,17 +57,18 @@ class SantoriniGame:
 
         # maps square height to emojis
         height_print_dict = {
-            0: "\N{white large square} ",
+            0: "\N{white large square}",
             1: "\U0001F7E8",
             2: "\U0001F7E6",
             3: "\U0001F7E5",
             4: "\U0001F535",
         }
         if self.verbose:
-            for i in range(self.board_size):
-                for j in range(self.board_size):
-                    space = self.board[i][j]
-                    print(f'{space.player.getPlayerPiece() if space.player else "  "} {height_print_dict[space.height]}  ', end='')
+            print('\n')
+            for row in range(self.board_size):
+                for col in range(self.board_size):
+                    space = self.board[row][col]
+                    print(f'{space.player.getPlayerPiece() if space.player else "  "}{height_print_dict[space.height]}  ', end='')
                 print('\n')
 
     def play(self):
@@ -144,16 +147,19 @@ class SantoriniGame:
 
         # shallow copy to avoid copying player objects
         # agents may have state that we don't want to duplicate
-        new_positions = copy(player_positions)
-        new_board = [copy(col) for col in board[:]]
+        new_positions = {player: copy(position) for player, position in player_positions.items()}
+        new_board = []
+        for i in range(len(board[:][0])):
+            new_board.append([])
+            for j in range(len(board[0][:])):
+                new_board[i].append(BoardSpace(board[i][j].player, board[i][j].height))
 
         if action.action_type == "CHOOSE_STARTNG_POSITION" or action.action_type == "MOVE" :
-            old_position = player_positions[action.player]
-            new_board[old_position[0]][old_position[1]].player = None
-            new_board[action.location[0]][action.location[1]].player = action.player
-            new_positions[action.player] = action.location
+            new_board[action.player_location[0]][action.player_location[1]].player = None
+            new_board[action.action_location[0]][action.action_location[1]].player = action.player
+            new_positions[action.player] = action.action_location
         elif action.action_type == "BUILD":
-            new_board[action.location[0]][action.location[1]].height += 1
+            new_board[action.action_location[0]][action.action_location[1]].height += 1
         else:
             raise NotImplementedError(action.action_type)
         return new_board, new_positions

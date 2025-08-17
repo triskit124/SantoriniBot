@@ -14,6 +14,9 @@ AGENT_CHOICES["random"] = RandomAgent
 from .ForwardSearchAgent import ForwardSearchAgent
 AGENT_CHOICES["forward_search"] = ForwardSearchAgent
 
+from .MiniMaxAgent import MiniMaxAgent
+AGENT_CHOICES["mini_max"] = MiniMaxAgent
+
 try:
     from .NNAgent import NNAgent
     AGENT_CHOICES["neural_net"] = NNAgent

@@ -28,19 +28,17 @@ class HumanAgent(Agent):
             # ask for player to place their builder
             print(f"Welcome player {player.getPlayerNumber()}!")
             while True:
-                starting_row = int(input("Please place Builder (row): "))
-                starting_col = int(input("Please place Builder (col): "))
-                action = Action(player, "CHOOSE_STARTNG_POSITION", (starting_row, starting_col, 0))
+                starting_row = int(input("Please place Builder (row, starts at 0): "))
+                starting_col = int(input("Please place Builder (col, starts at 0): "))
+                action = Action(player, (starting_row, starting_col, 0), "CHOOSE_STARTNG_POSITION", "", (starting_row, starting_col, 0))
                 if action in player.getValidActions(game.board, game.player_positions[player], action_type):
                     break
                 print("Not a valid placement, try again\n")
-            print("\n")
         elif action_type in {"MOVE", "BUILD"}:
             while True:
                 valid_actions = player.getValidActions(game.board, game.player_positions[player], action_type)
-                choices = {HumanAgent.getActionDirectionFromPosition(game.player_positions[player], action.location): action for action in valid_actions}
-                choice = input(f"Select a {action_type.lower()}: {list(choices.keys())}:   ")
-                print("\n")
+                choices = {HumanAgent.getActionDirectionFromPosition(game.player_positions[player], action.action_location): action for action in valid_actions}
+                choice = input(f"Select a {action_type.lower()}: {list(choices.keys())}:   ").lower()
                 if choice in choices:
                     action = choices[choice]
                     break
