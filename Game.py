@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 
 from dataclasses import dataclass
 from typing import Optional, Literal, TYPE_CHECKING
@@ -28,6 +29,11 @@ class Action():
     action_direction: str
     action_location: BoardLocation
 
+@dataclass 
+class GameLog():
+    players: list["Player"]
+    action_history: list[Action]
+    winner: "Player"
 
 class SantoriniGame:
     """
@@ -36,7 +42,7 @@ class SantoriniGame:
     including player positions and the game board.
     """
 
-    def __init__(self, players: list["Player"], board_size: int = 5, verbose: bool = True):
+    def __init__(self, players: list["Player"], board_size: int = 5, verbose: bool = True, log: Optional[str] = None):
 
         # players
         self.players = players # ordered list of players
@@ -49,8 +55,12 @@ class SantoriniGame:
         self.board: Board = [[BoardSpace(None, 0) for _ in range(self.board_size)] for _ in range(self.board_size)]
 
         self.verbose = verbose
+        
+        # for logging
+        self.log = log
+        self._action_history: list[Action] = []
 
-    def printBoard(self):
+    def _printBoard(self):
         """
         Helper function to print the current game board to the command line.
         """
@@ -93,6 +103,9 @@ class SantoriniGame:
         while not self.isGameOver():
             for player in self.players:
                 player.playTurn(self)
+
+        if self.log:
+            self._saveLog()
     
     def applyAction(self, action: Action):
         """
@@ -101,8 +114,11 @@ class SantoriniGame:
         """
         self.board, self.player_positions = SantoriniGame.getBoardAfterAction(self.board, self.player_positions, action)
         
+        if self.log:
+            self._action_history.append(action)
+
         if self.verbose:
-            self.printBoard()
+            self._printBoard()
 
         self._checkForWinnersOrLosers()
 
@@ -134,6 +150,29 @@ class SantoriniGame:
                 self.winner = remaining_players.pop()
                 print(f"player {self.winner.getPlayerNumber()} wins!")
 
+    def _saveLog(self):
+        if not self.log:
+            raise ValueError("Cannot save game log without log filename")
+
+        if not self.winner:
+            raise ValueError("Cannot save game log without a known winner")
+        
+        if not self._action_history:
+            raise ValueError("Cannot save game log without an action history")
+
+        game_log = GameLog(
+            players=self.players,
+            action_history=self._action_history,
+            winner=self.winner,
+        )
+
+        if not os.path.exists(os.path.dirname(self.log)):
+            os.mkdir(os.path.dirname(self.log))
+
+        with open(self.log, "wb") as f:
+            import pickle
+            pickle.dump(game_log, f)
+    
     @staticmethod
     def getBoardAfterAction(board: Board, player_positions: PlayerPositions, action: Action) -> tuple[Board, PlayerPositions]:
         """

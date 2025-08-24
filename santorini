@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import click
-from configparser import ConfigParser
 
 from agents import AGENT_CHOICES
 from agents.Player import Player
@@ -14,17 +13,18 @@ def cli(ctx, *args, **kwargs):
 
 @cli.command()
 @click.pass_context
-@click.option('-v', '--verbose', default=True)
-@click.option('-b', '--board-size', default=4, type=click.IntRange(min=3, max=5))
-@click.option('-p', '--player', default="human", type=click.Choice(list(AGENT_CHOICES.keys())))
-@click.option('-o', '--opponent', default=["mini_max"], type=click.Choice(list(AGENT_CHOICES.keys())), multiple=True)
+@click.option('-v', '--verbose', default=True, show_default=True)
+@click.option('-b', '--board-size', default=5, type=click.IntRange(min=3, max=5), show_default=True)
+@click.option('-p', '--player', default="human", type=click.Choice(list(AGENT_CHOICES.keys())), show_default=True)
+@click.option('-o', '--opponent', default=["mini_max"], type=click.Choice(list(AGENT_CHOICES.keys())), multiple=True, show_default=True)
+@click.option('-l', '--log', type=click.Path(dir_okay=False))
 def play(ctx, *args, **kwargs):
     
     players = [Player(player_number=0, player_piece="\U0001F477", agent=AGENT_CHOICES[kwargs['player']]())]
     for i, agent_choice in enumerate(kwargs["opponent"]):
         players.append(Player(player_number=i+1, player_piece="\U0001F916", agent=AGENT_CHOICES[agent_choice]()))
 
-    game = SantoriniGame(players)
+    game = SantoriniGame(players, board_size=kwargs['board_size'], verbose=kwargs['verbose'], log=kwargs['log'])
     game.play()
 
 if __name__ == "__main__":
