@@ -32,6 +32,7 @@ class Action():
 @dataclass 
 class GameLog():
     players: list["Player"]
+    board_size: int
     action_history: list[Action]
     winner: "Player"
 
@@ -162,6 +163,7 @@ class SantoriniGame:
 
         game_log = GameLog(
             players=self.players,
+            board_size=self.board_size,
             action_history=self._action_history,
             winner=self.winner,
         )
@@ -173,6 +175,38 @@ class SantoriniGame:
             import pickle
             pickle.dump(game_log, f)
     
+    @staticmethod
+    def loadLog(path: str) -> GameLog:
+        if not os.path.exists(path):
+            raise ValueError(f"Cannot find log file at {path}")
+        with open(path, "rb") as f:
+            import pickle
+            game_log = pickle.load(f)
+        
+        if not isinstance(game_log, GameLog):
+            raise ValueError(f"Pickle file at {path} did not contain a GameLog object")
+        return game_log
+    
+    @staticmethod
+    def replayGameLog(log: str, pause: float = 0.25):
+        if not os.path.exists(log):
+            raise ValueError(f"Cannot find log file at {log}")
+        
+        import time
+
+        game_log = SantoriniGame.loadLog(log)
+
+        game = SantoriniGame(
+            players=game_log.players,
+            board_size=game_log.board_size,
+            verbose=True,
+        )
+
+        for action in game_log.action_history:
+            print(action)
+            game.applyAction(action)
+            time.sleep(pause)
+
     @staticmethod
     def getBoardAfterAction(board: Board, player_positions: PlayerPositions, action: Action) -> tuple[Board, PlayerPositions]:
         """

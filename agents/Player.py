@@ -11,6 +11,9 @@ class Player():
         self._player_piece = player_piece
         self._agent = agent
     
+    def __repr__(self) -> str:
+        return f"<Player {self.getPlayerNumber()} ({self.getAgent().__class__.__name__})>"
+    
     def getMoveActionDirections(self) -> tuple[str, ...]:
         return (
             "UP",

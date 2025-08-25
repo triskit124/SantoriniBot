@@ -7,25 +7,35 @@ from agents.Player import Player
 from Game import SantoriniGame
 
 @click.group()
-@click.pass_context
-def cli(ctx, *args, **kwargs):
+def cli(*args, **kwargs):
     pass
 
 @cli.command()
-@click.pass_context
 @click.option('-v', '--verbose', default=True, show_default=True)
 @click.option('-b', '--board-size', default=5, type=click.IntRange(min=3, max=5), show_default=True)
 @click.option('-p', '--player', default="human", type=click.Choice(list(AGENT_CHOICES.keys())), show_default=True)
 @click.option('-o', '--opponent', default=["mini_max"], type=click.Choice(list(AGENT_CHOICES.keys())), multiple=True, show_default=True)
 @click.option('-l', '--log', type=click.Path(dir_okay=False))
-def play(ctx, *args, **kwargs):
-    
+def play(*args, **kwargs):
+    """
+    Play a game of Santorini!
+    """
     players = [Player(player_number=0, player_piece="\U0001F477", agent=AGENT_CHOICES[kwargs['player']]())]
     for i, agent_choice in enumerate(kwargs["opponent"]):
         players.append(Player(player_number=i+1, player_piece="\U0001F916", agent=AGENT_CHOICES[agent_choice]()))
 
     game = SantoriniGame(players, board_size=kwargs['board_size'], verbose=kwargs['verbose'], log=kwargs['log'])
     game.play()
+
+
+@cli.command()
+@click.option('-l', '--log', type=click.Path(dir_okay=False, exists=True))
+@click.option('-p', '--pause', type=click.FloatRange(min=0.0), default=0.25, show_default=True)
+def replay(*args, **kwargs):
+    """
+    Replays a game from a log file.
+    """
+    SantoriniGame.replayGameLog(**kwargs)
 
 if __name__ == "__main__":
     cli()
