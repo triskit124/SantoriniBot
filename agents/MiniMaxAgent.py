@@ -2,6 +2,8 @@ import random
 from math import inf
 from typing import Optional
 
+import numpy as np
+
 from Game import SantoriniGame, Board, ActionType, Action, PlayerPositions
 from .Player import Player, Agent
 
@@ -46,11 +48,21 @@ class MiniMaxAgent(Agent):
         next_player = player.getNextPlayer(list(player_positions.keys()), action_type)
         next_action_type = player.getNextActionType(list(player_positions.keys()), action_type)
 
-        random.shuffle(actions)
         value = player_idx * -inf
         values = []
+        heuristic_values = [0.0] * len(actions)
+        
+        # order actions by heuristic value
+        for i, action in enumerate(actions):
+            new_board, new_positions = SantoriniGame.getBoardAfterAction(board, player_positions, action)
+            # multiply by -player index because numpy argsort sorts from low to high. 
+            # for minimizing player we want lowest scoring actions first
+            # for maximizing player we want highest scoring actions first
+            heuristic_values[i] = -player_idx * self.evaluationFunction(new_board, new_positions, player)
 
-        for action in actions:
+        ordered_actions = [actions[i] for i in np.argsort(heuristic_values)]
+
+        for i, action in enumerate(ordered_actions):
             new_board, new_positions = SantoriniGame.getBoardAfterAction(board, player_positions, action)
 
             # minimizing agent
@@ -71,13 +83,13 @@ class MiniMaxAgent(Agent):
                     break
                 alpha = max(alpha, value)
         
-        selected_action = actions[values.index(value)]
+        selected_action = ordered_actions[values.index(value)]
 
         if d_solve == self._d_solve:
             print(f"{'Maximizing player' if player_idx == 1 else "Minimizing player"}, Solve depth {d_solve}")
-            print(f"Selected action: {selected_action}, value: {value}, no. of pruned actions: {len(actions) - len(values)}, alpha: {alpha}, beta: {beta}")
+            print(f"Selected action: {selected_action}, value: {value}, no. of pruned actions: {len(ordered_actions) - len(values)}, alpha: {alpha}, beta: {beta}")
             print("All actions:")
-            for i, action in enumerate(actions):
+            for i, action in enumerate(ordered_actions):
                 if i < len(values):
                     print(f"\tAction: {action}, value: {values[i]}")
                 else:
